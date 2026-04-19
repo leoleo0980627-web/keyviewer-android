@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:elevation="8dp"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全局设置"
+            android:textSize="18sp"
+            android:textColor="#333"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 悬浮窗缩放 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="悬浮窗缩放"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <Button
+                android:id="@+id/floatScaleDownBtn"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:text="-"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/floatScaleText"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="100%"
+                android:textSize="16sp"
+                android:textColor="#333"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/floatScaleUpBtn"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:text="+"
+                android:textSize="20sp" />
+
+        </LinearLayout>
+
+        <!-- 键雨高度 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="键雨最大高度"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/rainHeightInput"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:inputType="number"
+            android:text="200"
+            android:textSize="14sp"
+            android:padding="8dp"
+            android:background="#FFF"
+            android:layout_marginBottom="20dp"
+            android:imeOptions="actionDone" />
+
+        <!-- 分隔线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDD"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 按键计数归零 -->
+        <Button
+            android:id="@+id/resetCountsBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="重置所有按键计数"
+            android:textSize="14sp"
+            android:backgroundTint="#F44336"
+            android:textColor="#FFF"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="将按键计数归零（KPS/TOTAL 不受影响）"
+            android:textSize="12sp"
+            android:textColor="#999"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 分隔线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDD"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 悬浮窗位置重置 -->
+        <Button
+            android:id="@+id/resetFloatPositionBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="重置悬浮窗位置"
+            android:textSize="14sp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 分隔线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDD"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 键盘校准 -->
+        <Button
+            android:id="@+id/calibrateKeyboardBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="校准键盘设备"
+            android:textSize="14sp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 分隔线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDD"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 导入导出配置 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="配置管理"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <Button
+                android:id="@+id/exportConfigBtn"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="导出配置"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
+
+            <Button
+                android:id="@+id/importConfigBtn"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="导入配置"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

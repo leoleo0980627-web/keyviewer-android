@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.KV.KeyView
+        android:id="@+id/keyView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <include
+        android:id="@+id/zoomControls"
+        layout="@layout/zoom_controls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp" />
+
+    <ImageButton
+        android:id="@+id/globalSettingsBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="12dp"
+        android:src="@drawable/ic_settings"
+        android:background="@drawable/bg_zoom_panel"
+        android:padding="10dp"
+        android:elevation="8dp" />
+
+    <LinearLayout
+        android:id="@+id/toolbar"
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_toolbar"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:elevation="8dp">
+
+        <ImageButton
+            android:id="@+id/addKeyBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_add"
+            android:background="@android:color/transparent" />
+
+        <ImageButton
+            android:id="@+id/deleteKeyBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_delete"
+            android:background="@android:color/transparent"
+            android:alpha="0.5" />
+
+        <ImageButton
+            android:id="@+id/batchEditBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_batch_edit"
+            android:background="@android:color/transparent" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/floatWindowBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="12dp"
+        android:text="开启悬浮窗"
+        android:textSize="12sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:backgroundTint="#4CAF50"
+        android:textColor="#FFF" />
+
+    <Button
+        android:id="@+id/shizukuBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="120dp"
+        android:layout_marginBottom="12dp"
+        android:text="授权 Shizuku"
+        android:textSize="12sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:backgroundTint="#FF9800"
+        android:textColor="#FFF" />
+
+    <include
+        android:id="@+id/settingsPanel"
+        layout="@layout/settings_panel"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:visibility="gone" />
+
+    <include
+        android:id="@+id/globalSettingsPanel"
+        layout="@layout/global_settings_panel"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:visibility="gone" />
+
+</FrameLayout>

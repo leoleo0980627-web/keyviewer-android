@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">KeyViewer</string>
+    <string name="add_key">新增按键</string>
+    <string name="delete_key">删除按键</string>
+    <string name="kps">KPS</string>
+    <string name="total">TOTAL</string>
+</resources>
