@@ -27,8 +27,6 @@ public class RishInputListener {
     private Map<Integer, Boolean> keyPressedState = new HashMap<>();
     private volatile boolean paused = false;
     
-    private static final String FIFO_PATH = "/data/local/tmp/keyfifo";
-    
     public RishInputListener(Context context, KeyView keyView) {
         this.context = context;
         this.keyView = keyView;
@@ -55,7 +53,6 @@ public class RishInputListener {
             isListening = true;
             Log.d(TAG, "Listener thread started");
             
-            // 创建 FIFO 并启动所有 getevent，汇聚到一个流
             Process catProcess = startMergedMonitoring();
             if (catProcess == null) {
                 Log.e(TAG, "Failed to start merged monitoring");
@@ -67,7 +64,7 @@ public class RishInputListener {
                 currentProcesses.add(catProcess);
             }
             
-            Log.d(TAG, "Reading from FIFO...");
+            Log.d(TAG, "Reading from merged stream...");
             
             try {
                 BufferedReader reader = new BufferedReader(
@@ -127,7 +124,7 @@ public class RishInputListener {
                     }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error reading from FIFO", e);
+                Log.e(TAG, "Error reading from merged stream", e);
             }
         }).start();
     }
@@ -139,18 +136,15 @@ public class RishInputListener {
                 "newProcess", String[].class, String[].class, String.class);
             method.setAccessible(true);
             
-            // 先删除旧管道，创建新管道，启动所有 getevent，最后 cat 读取
+            // 使用匿名管道，不依赖 FIFO
             String[] cmd = {"sh", "-c", 
-                "rm -f " + FIFO_PATH + " && " +
-                "mkfifo " + FIFO_PATH + " && " +
                 "for f in /dev/input/event*; do " +
-                "  getevent $f >> " + FIFO_PATH + " 2>/dev/null & " +
-                "done && " +
-                "cat " + FIFO_PATH
+                "  getevent $f 2>/dev/null & " +
+                "done | cat"
             };
             
             Process p = (Process) method.invoke(null, cmd, null, null);
-            Log.d(TAG, "Merged monitoring started: " + String.join(" ", cmd));
+            Log.d(TAG, "Merged monitoring started (anonymous pipe)");
             return p;
         } catch (Exception e) {
             Log.e(TAG, "startMergedMonitoring failed", e);
@@ -179,12 +173,11 @@ public class RishInputListener {
                 "newProcess", String[].class, String[].class, String.class);
             method.setAccessible(true);
             
-            String[] killCmd = {"sh", "-c", 
-                "killall getevent 2>/dev/null; rm -f " + FIFO_PATH};
+            String[] killCmd = {"sh", "-c", "killall getevent 2>/dev/null"};
             Process killP = (Process) method.invoke(null, killCmd, null, null);
             killP.waitFor();
             killP.destroy();
-            Log.d(TAG, "All getevent processes killed, FIFO removed");
+            Log.d(TAG, "All getevent processes killed");
         } catch (Exception e) {
             Log.e(TAG, "cleanup failed", e);
         }
