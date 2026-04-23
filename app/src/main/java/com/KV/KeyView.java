@@ -96,6 +96,10 @@ public class KeyView extends View {
     private float rainMaxHeightPx;
     private float rainCutLineY;
 
+    // 复制粘贴
+    private List<KeyData> pastingKeys = new ArrayList<>();
+    private boolean isPastingMode = false;
+
     private static final Map<String, String> KEY_DISPLAY_MAP = new HashMap<>();
     static {
         KEY_DISPLAY_MAP.put("lctrl", "L Ctrl");
@@ -195,7 +199,6 @@ public class KeyView extends View {
             Typeface typeface = Typeface.createFromAsset(context.getAssets(), "fonts/adofai.ttf");
             textPaint.setTypeface(typeface);
         } catch (Exception e) {
-            // 字体加载失败，使用默认字体
         }
 
         selectionBorderDrawable = context.getResources().getDrawable(R.drawable.bg_key_border);
@@ -225,6 +228,10 @@ public class KeyView extends View {
 
     public boolean isBatchEditMode() {
         return batchEditMode;
+    }
+
+    public boolean isPastingMode() {
+        return isPastingMode;
     }
 
     public List<KeyData> getSelectedKeys() {
@@ -267,6 +274,89 @@ public class KeyView extends View {
 
     public KeyData getSelectedKey() {
         return selectedKey;
+    }
+
+    public void selectKeyById(String id) {
+        for (KeyData key : keyManager.getKeys()) {
+            if (key.id.equals(id)) {
+                selectedKey = key;
+                keyManager.setSelectedKey(id);
+                updateRectsForSelected();
+                
+                if (selectionListener != null) {
+                    selectionListener.onSelectionChanged(true);
+                }
+                if (keyUpdatedListener != null) {
+                    keyUpdatedListener.onKeyUpdated(key);
+                }
+                
+                invalidate();
+                return;
+            }
+        }
+    }
+
+    public void startPasting() {
+        List<KeyData> clipboard = keyManager.getClipboard();
+        if (clipboard.isEmpty()) return;
+        
+        isPastingMode = true;
+        pastingKeys.clear();
+        
+        float avgX = 0, avgY = 0;
+        for (KeyData key : clipboard) {
+            avgX += key.centerX;
+            avgY += key.centerY;
+        }
+        avgX /= clipboard.size();
+        avgY /= clipboard.size();
+        
+        float screenCenterX = -translateX / scaleFactor + getWidth() / 2f / scaleFactor;
+        float screenCenterY = -translateY / scaleFactor + getHeight() / 2f / scaleFactor;
+        float offsetX = screenCenterX - avgX;
+        float offsetY = screenCenterY - avgY;
+        
+        for (KeyData key : clipboard) {
+            KeyData pasted = key.clone();
+            pasted.centerX += offsetX;
+            pasted.centerY += offsetY;
+            pasted.centerX = Math.round(pasted.centerX / gridSizePx) * gridSizePx;
+            pasted.centerY = Math.round(pasted.centerY / gridSizePx) * gridSizePx;
+            pastingKeys.add(pasted);
+        }
+        
+        updatePastingRects();
+        invalidate();
+    }
+
+    public void confirmPaste() {
+        for (KeyData key : pastingKeys) {
+            key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
+            key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
+            keyManager.getKeys().add(key);
+        }
+        keyManager.saveToPreferences();
+        cancelPaste();
+        invalidate();
+    }
+
+    public void cancelPaste() {
+        isPastingMode = false;
+        pastingKeys.clear();
+        invalidate();
+    }
+
+    private void updatePastingRects() {
+        for (KeyData key : pastingKeys) {
+            float halfW = key.width / 2f;
+            float halfH = key.height / 2f;
+            key.rect.set(
+                key.centerX - halfW,
+                key.centerY - halfH,
+                key.centerX + halfW,
+                key.centerY + halfH
+            );
+        }
     }
 
     public void addNewKey() {
@@ -359,18 +449,12 @@ public class KeyView extends View {
         return false;
     }
 
-    /**
-     * 获取按键映射后的键名
-     * @param originalKey 原始按下的键名
-     * @return 映射后的键名，如果没有映射则返回原键名
-     */
     public String getMappedKey(String originalKey) {
         if (originalKey == null) return null;
         
         for (KeyData key : keyManager.getKeys()) {
             if (key.boundKey != null && key.boundKey.equals(originalKey)) {
                 if (key.mappingEnabled && key.mappedKey != null && !key.mappedKey.isEmpty()) {
-                    Log.d(TAG, "getMappedKey: " + originalKey + " -> " + key.mappedKey);
                     return key.mappedKey;
                 }
                 break;
@@ -404,6 +488,7 @@ public class KeyView extends View {
                                 particleX, particleY, particleWidth, 
                                 key.rainColor, 
                                 key.rainSpeedDp * density);
+                        p.height = 10 * density;
                         key.rainParticles.add(p);
                     }
                 } else if (!pressed && key.rainEnabled) {
@@ -596,10 +681,11 @@ public class KeyView extends View {
             }
         }
 
-        // 先绘制键雨粒子（在所有按键下方）
-        List<KeyData> keys = keyManager.getKeys();
-        for (int i = keys.size() - 1; i >= 0; i--) {
-            KeyData key = keys.get(i);
+        updateAllKeyRects();
+        
+        List<KeyData> sortedKeys = keyManager.getSortedKeys();
+        
+        for (KeyData key : sortedKeys) {
             if (key.rainEnabled) {
                 for (KeyData.RainParticle p : key.rainParticles) {
                     rainPaint.setColor(p.color);
@@ -612,12 +698,6 @@ public class KeyView extends View {
             }
         }
 
-        updateAllKeyRects();
-        
-        // 按 zIndex 排序后绘制（数字越大越靠上）
-        List<KeyData> sortedKeys = new ArrayList<>(keys);
-        sortedKeys.sort((a, b) -> Integer.compare(a.zIndex, b.zIndex));
-        
         for (KeyData key : sortedKeys) {
             drawKey(canvas, key);
         }
@@ -658,6 +738,24 @@ public class KeyView extends View {
             handleDrawable.draw(canvas);
         }
 
+        if (isPastingMode) {
+            float density = getResources().getDisplayMetrics().density;
+            for (KeyData key : pastingKeys) {
+                float cornerRadius = key.cornerRadiusDp * density;
+                
+                keyFillPaint.setColor(key.fillColor);
+                keyFillPaint.setAlpha(102);
+                canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyFillPaint);
+                keyFillPaint.setAlpha(255);
+                
+                keyBorderPaint.setColor(key.borderColor);
+                keyBorderPaint.setAlpha(102);
+                keyBorderPaint.setStrokeWidth(key.borderWidthDp * density);
+                canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyBorderPaint);
+                keyBorderPaint.setAlpha(255);
+            }
+        }
+
         canvas.restore();
     }
 
@@ -679,61 +777,53 @@ public class KeyView extends View {
         if (displayText != null && !displayText.isEmpty()) {
             String[] lines = displayText.split("\n");
             
-            float actualTextSize = key.textSizeSp * density;
+            float nameTextSize = key.textSizeSp * density;
+            float countTextSize = nameTextSize;
             
-            // 多行时根据数字位数调整字体大小
             if (lines.length >= 2) {
                 String countStr = lines[lines.length - 1];
                 int digitCount = countStr.length();
-                if (digitCount >= 9) actualTextSize *= 0.5f;
-                else if (digitCount >= 8) actualTextSize *= 0.55f;
-                else if (digitCount >= 7) actualTextSize *= 0.6f;
-                else if (digitCount >= 6) actualTextSize *= 0.7f;
-                else if (digitCount >= 5) actualTextSize *= 0.8f;
-                else if (digitCount >= 4) actualTextSize *= 0.9f;
+                if (digitCount >= 9) countTextSize *= 0.5f;
+                else if (digitCount >= 8) countTextSize *= 0.55f;
+                else if (digitCount >= 7) countTextSize *= 0.6f;
+                else if (digitCount >= 6) countTextSize *= 0.7f;
+                else if (digitCount >= 5) countTextSize *= 0.8f;
+                else if (digitCount >= 4) countTextSize *= 0.9f;
             }
             
-            textPaint.setTextSize(actualTextSize);
-            
-            Paint.FontMetrics metrics = textPaint.getFontMetrics();
-            float lineHeight = metrics.descent - metrics.ascent;
-            float totalHeight = lineHeight * lines.length;
-            
-            float centerY = key.rect.centerY();
+            textPaint.setColor(key.textColor != 0 ? key.textColor : Color.WHITE);
             
             if (lines.length == 1) {
-                // 单行：直接垂直居中
-                float y = centerY - (metrics.ascent + metrics.descent) / 2;
+                textPaint.setTextSize(nameTextSize);
+                Paint.FontMetrics metrics = textPaint.getFontMetrics();
+                float y = key.rect.centerY() - (metrics.ascent + metrics.descent) / 2;
                 canvas.drawText(lines[0], key.rect.centerX(), y, textPaint);
             } else {
-                // 多行：整体居中
-                float firstLineBaseline = centerY - totalHeight / 2 - metrics.ascent;
-                for (int i = 0; i < lines.length; i++) {
-                    float y = firstLineBaseline + i * lineHeight;
-                    canvas.drawText(lines[i], key.rect.centerX(), y, textPaint);
-                }
+                textPaint.setTextSize(nameTextSize);
+                Paint.FontMetrics nameMetrics = textPaint.getFontMetrics();
+                float nameLineHeight = nameMetrics.descent - nameMetrics.ascent;
+                
+                textPaint.setTextSize(countTextSize);
+                Paint.FontMetrics countMetrics = textPaint.getFontMetrics();
+                float countLineHeight = countMetrics.descent - countMetrics.ascent;
+                
+                float totalHeight = nameLineHeight + countLineHeight;
+                float centerY = key.rect.centerY();
+                
+                textPaint.setTextSize(nameTextSize);
+                float firstLineBaseline = centerY - totalHeight / 2 - nameMetrics.ascent;
+                canvas.drawText(lines[0], key.rect.centerX(), firstLineBaseline, textPaint);
+                
+                textPaint.setTextSize(countTextSize);
+                float secondLineBaseline = firstLineBaseline + nameLineHeight;
+                canvas.drawText(lines[1], key.rect.centerX(), secondLineBaseline, textPaint);
             }
         }
     }
 
-    /**
-     * 获取按键显示文本
-     * 
-     * 逻辑说明：
-     * 1. 如果是 KPS/TOTAL 特殊标签，显示动态内容（始终带数字）
-     * 2. 如果有自定义显示文字：
-     *    - 如果 showCount 为 true 且按键已绑定，显示 "文字\n次数"
-     *    - 否则只显示文字
-     * 3. 如果没有自定义文字：
-     *    - 如果按键已绑定：
-     *      - showCount 为 true 时显示 "按键名\n次数"
-     *      - 否则只显示按键名
-     *    - 未绑定则显示空
-     */
     private String getDisplayTextForKey(KeyData key) {
         boolean hasCustomLabel = key.displayLabel != null && !key.displayLabel.isEmpty();
         
-        // 处理特殊标签 (KPS/TOTAL) - 这些始终显示动态内容
         if (hasCustomLabel) {
             String lower = key.displayLabel.toLowerCase();
             if (lower.equals("kps")) {
@@ -743,12 +833,10 @@ public class KeyView extends View {
             }
         }
         
-        // 获取基础显示文本
         String baseText;
         if (hasCustomLabel) {
             baseText = key.displayLabel;
         } else {
-            // 没有自定义标签，使用绑定的按键名
             if (key.boundKey == null || key.boundKey.equals("未绑定") || key.boundKey.isEmpty()) {
                 return "";
             }
@@ -759,9 +847,7 @@ public class KeyView extends View {
             baseText = displayName;
         }
         
-        // 根据 showCount 决定是否显示次数
         if (key.showCount) {
-            // 确保按键已绑定且不是未绑定状态
             if (key.boundKey != null && !key.boundKey.equals("未绑定") && !key.boundKey.isEmpty()) {
                 int count = keyManager.getKeyCount(key.boundKey);
                 return baseText + "\n" + count;
@@ -787,6 +873,12 @@ public class KeyView extends View {
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                if (isPastingMode) {
+                    lastTouchX = screenX;
+                    lastTouchY = screenY;
+                    return true;
+                }
+                
                 dragMode = NONE;
                 isLongPressTriggered = false;
 
@@ -818,7 +910,6 @@ public class KeyView extends View {
                         } else {
                             selectedKey = hitKey;
                             keyManager.setSelectedKey(hitKey.id);
-                            keyManager.bringToFront(hitKey.id);
                             updateRectsForSelected();
                             dragMode = DRAG_BODY;
                             
@@ -849,10 +940,24 @@ public class KeyView extends View {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                if (dragMode == NONE) return true;
-
                 float dx = screenX - lastTouchX;
                 float dy = screenY - lastTouchY;
+
+                if (isPastingMode) {
+                    float worldDx = dx / scaleFactor;
+                    float worldDy = dy / scaleFactor;
+                    for (KeyData key : pastingKeys) {
+                        key.centerX += worldDx;
+                        key.centerY += worldDy;
+                    }
+                    updatePastingRects();
+                    invalidate();
+                    lastTouchX = screenX;
+                    lastTouchY = screenY;
+                    return true;
+                }
+
+                if (dragMode == NONE) return true;
 
                 switch (dragMode) {
                     case PAN_CANVAS:
@@ -862,7 +967,15 @@ public class KeyView extends View {
                         break;
 
                     case DRAG_BODY:
-                        if (selectedKey != null) {
+                        if (batchEditMode && !selectedKeys.isEmpty()) {
+                            float worldDx = dx / scaleFactor;
+                            float worldDy = dy / scaleFactor;
+                            for (KeyData key : selectedKeys) {
+                                key.centerX += worldDx;
+                                key.centerY += worldDy;
+                            }
+                            updateAllKeyRects();
+                        } else if (selectedKey != null) {
                             float worldDx = dx / scaleFactor;
                             float worldDy = dy / scaleFactor;
                             selectedKey.centerX += worldDx;
@@ -932,9 +1045,27 @@ public class KeyView extends View {
                 return true;
 
             case MotionEvent.ACTION_UP:
+                if (isPastingMode) {
+                    for (KeyData key : pastingKeys) {
+                        key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
+                        key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
+                    }
+                    updatePastingRects();
+                    invalidate();
+                    return true;
+                }
+                
                 if (dragMode == DRAG_BODY || dragMode == DRAG_TOP || dragMode == DRAG_BOTTOM ||
                         dragMode == DRAG_LEFT || dragMode == DRAG_RIGHT) {
-                    snapSelectedToGrid();
+                    if (batchEditMode && !selectedKeys.isEmpty()) {
+                        for (KeyData key : selectedKeys) {
+                            key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
+                            key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
+                        }
+                        keyManager.saveToPreferences();
+                    } else {
+                        snapSelectedToGrid();
+                    }
                     invalidate();
                 }
                 dragMode = NONE;
@@ -942,6 +1073,9 @@ public class KeyView extends View {
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
+                if (isPastingMode) {
+                    return true;
+                }
                 dragMode = NONE;
                 isLongPressTriggered = false;
                 return true;
@@ -953,7 +1087,7 @@ public class KeyView extends View {
     private class GestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public void onLongPress(MotionEvent e) {
-            if (batchEditMode) return;
+            if (batchEditMode || isPastingMode) return;
             
             float screenX = e.getX();
             float screenY = e.getY();

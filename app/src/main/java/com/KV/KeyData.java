@@ -3,6 +3,7 @@ package com.KV;
 import android.graphics.RectF;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class KeyData {
     public String id;
@@ -23,6 +24,7 @@ public class KeyData {
     // 文字设置
     public float textSizeSp = 14f;
     public boolean showCount = true;
+    public int textColor = 0xFFFFFFFF;
     
     // 映射按键
     public boolean mappingEnabled = false;
@@ -55,6 +57,29 @@ public class KeyData {
         this.centerY = centerY;
         this.width = width;
         this.height = height;
+    }
+    
+    public KeyData clone() {
+        KeyData clone = new KeyData(UUID.randomUUID().toString(), centerX, centerY, width, height);
+        clone.boundKey = this.boundKey;
+        clone.displayLabel = this.displayLabel;
+        clone.fillColor = this.fillColor;
+        clone.borderColor = this.borderColor;
+        clone.cornerRadiusDp = this.cornerRadiusDp;
+        clone.borderWidthDp = this.borderWidthDp;
+        clone.textSizeSp = this.textSizeSp;
+        clone.showCount = this.showCount;
+        clone.textColor = this.textColor;
+        clone.mappingEnabled = this.mappingEnabled;
+        clone.mappedKey = this.mappedKey;
+        clone.rainEnabled = this.rainEnabled;
+        clone.rainOffsetXDp = this.rainOffsetXDp;
+        clone.rainOffsetYDp = this.rainOffsetYDp;
+        clone.rainWidthPercent = this.rainWidthPercent;
+        clone.rainColor = this.rainColor;
+        clone.rainSpeedDp = this.rainSpeedDp;
+        clone.zIndex = this.zIndex;
+        return clone;
     }
     
     public boolean isSpecialKey() {

@@ -5,6 +5,8 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,9 @@ public class KeyManager {
     
     private Context context;
     
+    // 剪贴板
+    private List<KeyData> clipboard = new ArrayList<>();
+    
     public KeyManager() {
         this(null);
     }
@@ -38,9 +43,31 @@ public class KeyManager {
         this.context = context;
     }
     
+    public List<KeyData> getClipboard() {
+        return clipboard;
+    }
+    
+    public void copyToClipboard(List<KeyData> source) {
+        clipboard.clear();
+        for (KeyData key : source) {
+            clipboard.add(key.clone());
+        }
+        Log.d(TAG, "copyToClipboard: " + clipboard.size() + " keys");
+    }
+    
+    public void pasteFromClipboard() {
+        for (KeyData key : clipboard) {
+            KeyData newKey = key.clone();
+            keys.add(newKey);
+        }
+        saveToPreferences();
+        Log.d(TAG, "pasteFromClipboard: " + clipboard.size() + " keys");
+    }
+    
     public KeyData createNewKey(float centerX, float centerY, float width, float height) {
         String id = UUID.randomUUID().toString();
         KeyData key = new KeyData(id, centerX, centerY, width, height);
+        key.zIndex = 0;
         keys.add(key);
         saveToPreferences();
         Log.d(TAG, "createNewKey: " + id);
@@ -83,24 +110,25 @@ public class KeyManager {
         return keys;
     }
     
-    public void bringToFront(String id) {
-        for (int i = 0; i < keys.size(); i++) {
-            if (keys.get(i).id.equals(id)) {
-                KeyData key = keys.remove(i);
-                keys.add(key);
-                break;
+    public String getSelectedKeyIdForInternal() {
+        return selectedKeyId;
+    }
+    
+    public List<KeyData> getSortedKeys() {
+        List<KeyData> sorted = new ArrayList<>(keys);
+        Collections.sort(sorted, new Comparator<KeyData>() {
+            @Override
+            public int compare(KeyData a, KeyData b) {
+                return Integer.compare(a.zIndex, b.zIndex);
             }
-        }
-        saveToPreferences();
-        Log.d(TAG, "bringToFront: " + id);
+        });
+        return sorted;
     }
     
     public KeyData findKeyAt(float worldX, float worldY) {
-        // 按 zIndex 从大到小查找（越靠上的越先被选中）
-        List<KeyData> sortedKeys = new ArrayList<>(keys);
-        sortedKeys.sort((a, b) -> Integer.compare(b.zIndex, a.zIndex));
-        
-        for (KeyData key : sortedKeys) {
+        List<KeyData> sorted = getSortedKeys();
+        for (int i = sorted.size() - 1; i >= 0; i--) {
+            KeyData key = sorted.get(i);
             if (key.rect.contains(worldX, worldY)) {
                 return key;
             }
@@ -108,9 +136,12 @@ public class KeyManager {
         return null;
     }
     
+    public void bringToFront(String id) {
+        Log.d(TAG, "bringToFront: " + id + " (layer order unchanged)");
+    }
+    
     public void recordKeyPress(String keyCode) {
         if (keyCode == null || keyCode.equals("未绑定") || keyCode.isEmpty()) {
-            Log.d(TAG, "recordKeyPress: skipped (invalid keyCode)");
             return;
         }
         
@@ -118,8 +149,6 @@ public class KeyManager {
         int newCount = (count == null ? 1 : count + 1);
         keyCodeCount.put(keyCode, newCount);
         totalPressCount++;
-        
-        Log.d(TAG, "recordKeyPress: " + keyCode + " -> " + newCount + " (total: " + totalPressCount + ")");
         
         long now = System.currentTimeMillis();
         recentPressTimes[recentIndex] = now;
@@ -155,7 +184,6 @@ public class KeyManager {
     }
     
     public void resetAllCounts() {
-        Log.d(TAG, "resetAllCounts");
         keyCodeCount.clear();
         totalPressCount = 0;
         for (int i = 0; i < recentPressTimes.length; i++) {
@@ -163,6 +191,15 @@ public class KeyManager {
         }
         recentIndex = 0;
         saveCountsToPreferences();
+    }
+    
+    public void setKeyCodeCounts(Map<String, Integer> counts) {
+        this.keyCodeCount.clear();
+        this.keyCodeCount.putAll(counts);
+    }
+    
+    public void setTotalPressCount(int total) {
+        this.totalPressCount = total;
     }
     
     public float[] getKeysBounds() {
@@ -204,6 +241,7 @@ public class KeyManager {
             editor.putFloat(prefix + "radius", k.cornerRadiusDp);
             editor.putFloat(prefix + "borderWidth", k.borderWidthDp);
             editor.putFloat(prefix + "textSize", k.textSizeSp);
+            editor.putInt(prefix + "textColor", k.textColor);
             editor.putBoolean(prefix + "showCount", k.showCount);
             editor.putBoolean(prefix + "mapping_en", k.mappingEnabled);
             editor.putString(prefix + "mapped", k.mappedKey);
@@ -223,10 +261,9 @@ public class KeyManager {
         }
         
         editor.apply();
-        Log.d(TAG, "saveToPreferences: " + keys.size() + " keys");
     }
     
-    private void saveCountsToPreferences() {
+    public void saveCountsToPreferences() {
         if (context == null) return;
         
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -242,7 +279,6 @@ public class KeyManager {
         editor.putInt(KEY_TOTAL, totalPressCount);
         
         editor.apply();
-        Log.d(TAG, "saveCountsToPreferences: total=" + totalPressCount);
     }
     
     public void loadFromPreferences() {
@@ -268,6 +304,7 @@ public class KeyManager {
             k.cornerRadiusDp = prefs.getFloat(prefix + "radius", 8f);
             k.borderWidthDp = prefs.getFloat(prefix + "borderWidth", 5f);
             k.textSizeSp = prefs.getFloat(prefix + "textSize", 14f);
+            k.textColor = prefs.getInt(prefix + "textColor", 0xFFFFFFFF);
             k.showCount = prefs.getBoolean(prefix + "showCount", true);
             k.mappingEnabled = prefs.getBoolean(prefix + "mapping_en", false);
             k.mappedKey = prefs.getString(prefix + "mapped", "");
@@ -294,8 +331,6 @@ public class KeyManager {
             }
         }
         totalPressCount = prefs.getInt(KEY_TOTAL, 0);
-        
-        Log.d(TAG, "loadFromPreferences: total=" + totalPressCount + ", counts=" + keyCodeCount);
     }
     
     public void updateKeyAndSave(KeyData key) {

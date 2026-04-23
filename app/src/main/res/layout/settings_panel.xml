@@ -120,6 +120,42 @@
             android:layout_marginBottom="20dp"
             android:imeOptions="actionDone" />
 
+        <!-- 文字颜色 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="文字颜色"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <EditText
+                android:id="@+id/textColorInput"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="#FFFFFF"
+                android:textSize="14sp"
+                android:padding="8dp"
+                android:background="#FFF"
+                android:layout_marginEnd="8dp"
+                android:imeOptions="actionDone"
+                android:inputType="text" />
+
+            <View
+                android:id="@+id/textColorPreview"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="#FFFFFF" />
+
+        </LinearLayout>
+
         <!-- 显示按键次数 -->
         <Switch
             android:id="@+id/showCountSwitch"
@@ -314,43 +350,6 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="#666666" />
-
-        </LinearLayout>
-
-        <!-- 图层顺序 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="图层顺序"
-            android:textSize="14sp"
-            android:textColor="#666"
-            android:layout_marginBottom="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
-
-            <EditText
-                android:id="@+id/zIndexInput"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:inputType="number"
-                android:text="0"
-                android:textSize="14sp"
-                android:padding="8dp"
-                android:background="#FFF"
-                android:imeOptions="actionDone" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="48dp"
-                android:text="  数字越大越靠上"
-                android:textSize="12sp"
-                android:textColor="#999"
-                android:gravity="center_vertical" />
 
         </LinearLayout>
 

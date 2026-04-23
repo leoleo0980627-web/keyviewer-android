@@ -15,16 +15,33 @@
         android:layout_height="wrap_content"
         android:layout_margin="12dp" />
 
-    <ImageButton
-        android:id="@+id/globalSettingsBtn"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_margin="12dp"
-        android:src="@drawable/ic_settings"
-        android:background="@drawable/bg_zoom_panel"
-        android:padding="10dp"
-        android:elevation="8dp" />
+        android:orientation="vertical"
+        android:layout_margin="12dp">
+
+        <ImageButton
+            android:id="@+id/globalSettingsBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_settings"
+            android:background="@drawable/bg_zoom_panel"
+            android:padding="10dp"
+            android:elevation="8dp" />
+
+        <ImageButton
+            android:id="@+id/layerManagerBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_layers"
+            android:background="@drawable/bg_zoom_panel"
+            android:padding="10dp"
+            android:elevation="8dp" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/toolbar"
@@ -56,12 +73,50 @@
             android:alpha="0.5" />
 
         <ImageButton
+            android:id="@+id/copyBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_copy"
+            android:background="@android:color/transparent"
+            android:alpha="0.5"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/pasteBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_paste"
+            android:background="@android:color/transparent"
+            android:alpha="0.5"
+            android:visibility="gone" />
+
+        <ImageButton
             android:id="@+id/batchEditBtn"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_gravity="center_vertical"
             android:src="@drawable/ic_batch_edit"
             android:background="@android:color/transparent" />
+
+        <ImageButton
+            android:id="@+id/confirmPasteBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_check"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/cancelPasteBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_close"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
 
     </LinearLayout>
 
@@ -92,6 +147,20 @@
         android:backgroundTint="#FF9800"
         android:textColor="#FFF" />
 
+    <Button
+        android:id="@+id/switchIMEBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="240dp"
+        android:layout_marginBottom="12dp"
+        android:text="启用输入法"
+        android:textSize="12sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:backgroundTint="#FF9800"
+        android:textColor="#FFF" />
+
     <include
         android:id="@+id/settingsPanel"
         layout="@layout/settings_panel"
@@ -103,6 +172,14 @@
     <include
         android:id="@+id/globalSettingsPanel"
         layout="@layout/global_settings_panel"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:visibility="gone" />
+
+    <include
+        android:id="@+id/layerManagerPanel"
+        layout="@layout/layer_manager_panel"
         android:layout_width="280dp"
         android:layout_height="match_parent"
         android:layout_gravity="right"

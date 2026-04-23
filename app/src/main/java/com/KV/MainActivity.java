@@ -25,20 +25,29 @@ public class MainActivity extends Activity {
     private KeyView keyView;
     private View settingsPanel;
     private View globalSettingsPanel;
+    private View layerManagerPanel;
     private SettingsPanel settingsPanelController;
     private GlobalSettingsPanel globalSettingsPanelController;
+    private LayerManagerPanel layerManagerPanelController;
     private boolean isPanelVisible = false;
     private boolean isGlobalPanelVisible = false;
+    private boolean isLayerPanelVisible = false;
 
     private ImageButton addKeyBtn;
     private ImageButton deleteKeyBtn;
     private ImageButton batchEditBtn;
     private ImageButton globalSettingsBtn;
+    private ImageButton layerManagerBtn;
+    private ImageButton copyBtn;
+    private ImageButton pasteBtn;
+    private ImageButton confirmPasteBtn;
+    private ImageButton cancelPasteBtn;
     private View zoomInBtn;
     private View zoomOutBtn;
     private View zoomResetBtn;
     private Button floatWindowBtn;
     private Button shizukuBtn;
+    private Button switchIMEBtn;
     
     private GlobalSettings globalSettings;
     private RishInputListener inputListener;
@@ -93,11 +102,18 @@ public class MainActivity extends Activity {
         keyView = findViewById(R.id.keyView);
         settingsPanel = findViewById(R.id.settingsPanel);
         globalSettingsPanel = findViewById(R.id.globalSettingsPanel);
+        layerManagerPanel = findViewById(R.id.layerManagerPanel);
 
         addKeyBtn = findViewById(R.id.addKeyBtn);
         deleteKeyBtn = findViewById(R.id.deleteKeyBtn);
         batchEditBtn = findViewById(R.id.batchEditBtn);
         globalSettingsBtn = findViewById(R.id.globalSettingsBtn);
+        layerManagerBtn = findViewById(R.id.layerManagerBtn);
+        copyBtn = findViewById(R.id.copyBtn);
+        pasteBtn = findViewById(R.id.pasteBtn);
+        confirmPasteBtn = findViewById(R.id.confirmPasteBtn);
+        cancelPasteBtn = findViewById(R.id.cancelPasteBtn);
+        switchIMEBtn = findViewById(R.id.switchIMEBtn);
         zoomInBtn = findViewById(R.id.zoomInBtn);
         zoomOutBtn = findViewById(R.id.zoomOutBtn);
         zoomResetBtn = findViewById(R.id.zoomResetBtn);
@@ -106,6 +122,7 @@ public class MainActivity extends Activity {
 
         settingsPanelController = new SettingsPanel(this, settingsPanel, keyView);
         globalSettingsPanelController = new GlobalSettingsPanel(this, globalSettingsPanel, keyView);
+        layerManagerPanelController = new LayerManagerPanel(this, layerManagerPanel, keyView);
         
         inputListener = new RishInputListener(this, keyView);
         
@@ -119,11 +136,36 @@ public class MainActivity extends Activity {
         addKeyBtn.setOnClickListener(v -> {
             keyView.addNewKey();
             updateDeleteButtonState();
+            updateToolbarForMode();
         });
 
         deleteKeyBtn.setOnClickListener(v -> {
             keyView.deleteSelectedKey();
             updateDeleteButtonState();
+            updateToolbarForMode();
+        });
+
+        copyBtn.setOnClickListener(v -> {
+            keyView.getKeyManager().copyToClipboard(keyView.getSelectedKeys());
+            Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
+            updateToolbarForMode();
+        });
+
+        pasteBtn.setOnClickListener(v -> {
+            if (!keyView.getKeyManager().getClipboard().isEmpty()) {
+                keyView.startPasting();
+                updateToolbarForMode();
+            }
+        });
+
+        confirmPasteBtn.setOnClickListener(v -> {
+            keyView.confirmPaste();
+            updateToolbarForMode();
+        });
+
+        cancelPasteBtn.setOnClickListener(v -> {
+            keyView.cancelPaste();
+            updateToolbarForMode();
         });
 
         batchEditBtn.setOnClickListener(v -> {
@@ -135,6 +177,7 @@ public class MainActivity extends Activity {
                 keyView.clearSelection();
             }
             updateDeleteButtonState();
+            updateToolbarForMode();
         });
 
         zoomInBtn.setOnClickListener(v -> keyView.zoomIn());
@@ -145,7 +188,31 @@ public class MainActivity extends Activity {
             if (isPanelVisible) {
                 hideSettingsPanel();
             }
+            if (isLayerPanelVisible) {
+                hideLayerManagerPanel();
+            }
             showGlobalSettingsPanel();
+        });
+
+        layerManagerBtn.setOnClickListener(v -> {
+            if (isPanelVisible) {
+                hideSettingsPanel();
+            }
+            if (isGlobalPanelVisible) {
+                hideGlobalSettingsPanel();
+            }
+            showLayerManagerPanel();
+        });
+
+        switchIMEBtn.setOnClickListener(v -> {
+            boolean enabled = IMEHelper.isKeyViewerIMEEnabled(this);
+            if (enabled) {
+                android.view.inputmethod.InputMethodManager imm = 
+                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                imm.showInputMethodPicker();
+            } else {
+                showIMEDialog();
+            }
         });
 
         floatWindowBtn.setOnClickListener(v -> {
@@ -161,9 +228,13 @@ public class MainActivity extends Activity {
 
         keyView.setOnSelectionChangedListener(hasSelection -> {
             updateDeleteButtonState();
+            updateToolbarForMode();
             if (hasSelection) {
                 if (isGlobalPanelVisible) {
                     hideGlobalSettingsPanel();
+                }
+                if (isLayerPanelVisible) {
+                    hideLayerManagerPanel();
                 }
                 showSettingsPanel();
             } else {
@@ -214,11 +285,70 @@ public class MainActivity extends Activity {
             }
         });
 
+        globalSettingsPanelController.setOnCloseRequestedListener(() -> {
+            hideGlobalSettingsPanel();
+        });
+
+        layerManagerPanelController.setOnLayerChangedListener(() -> {
+            if (isPanelVisible) {
+                settingsPanelController.syncFromKeyView();
+            }
+            keyView.invalidate();
+        });
+
+        layerManagerPanelController.setOnCloseRequestedListener(() -> {
+            hideLayerManagerPanel();
+        });
+
         updateDeleteButtonState();
         updateFloatWindowButton();
+        updateSwitchIMEButton();
+        updateToolbarForMode();
         batchEditBtn.setAlpha(0.5f);
         
         checkShizukuStatus();
+    }
+
+    private void updateToolbarForMode() {
+        boolean isPasting = keyView.isPastingMode();
+        boolean isBatch = keyView.isBatchEditMode();
+        boolean hasSelection = !keyView.getSelectedKeys().isEmpty();
+        boolean hasClipboard = !keyView.getKeyManager().getClipboard().isEmpty();
+        
+        if (isPasting) {
+            addKeyBtn.setVisibility(View.GONE);
+            deleteKeyBtn.setVisibility(View.GONE);
+            copyBtn.setVisibility(View.GONE);
+            pasteBtn.setVisibility(View.GONE);
+            batchEditBtn.setVisibility(View.GONE);
+            confirmPasteBtn.setVisibility(View.VISIBLE);
+            cancelPasteBtn.setVisibility(View.VISIBLE);
+        } else if (isBatch) {
+            addKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
+            deleteKeyBtn.setEnabled(hasSelection);
+            copyBtn.setVisibility(View.VISIBLE);
+            copyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
+            copyBtn.setEnabled(hasSelection);
+            pasteBtn.setVisibility(View.VISIBLE);
+            pasteBtn.setAlpha(hasClipboard ? 1.0f : 0.5f);
+            pasteBtn.setEnabled(hasClipboard);
+            batchEditBtn.setVisibility(View.VISIBLE);
+            confirmPasteBtn.setVisibility(View.GONE);
+            cancelPasteBtn.setVisibility(View.GONE);
+        } else {
+            addKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setVisibility(View.VISIBLE);
+            boolean hasSelected = keyView.getSelectedKey() != null;
+            deleteKeyBtn.setAlpha(hasSelected ? 1.0f : 0.5f);
+            deleteKeyBtn.setEnabled(hasSelected);
+            copyBtn.setVisibility(View.GONE);
+            pasteBtn.setVisibility(View.GONE);
+            batchEditBtn.setVisibility(View.VISIBLE);
+            confirmPasteBtn.setVisibility(View.GONE);
+            cancelPasteBtn.setVisibility(View.GONE);
+        }
     }
     
     private void checkShizukuStatus() {
@@ -321,6 +451,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updateSwitchIMEButton() {
+        if (IMEHelper.isKeyViewerIMEEnabled(this)) {
+            switchIMEBtn.setText("切换输入法");
+            switchIMEBtn.setBackgroundColor(0xFF2196F3);
+        } else {
+            switchIMEBtn.setText("启用输入法");
+            switchIMEBtn.setBackgroundColor(0xFFFF9800);
+        }
+    }
+
+    private void showIMEDialog() {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("未启用输入法")
+            .setMessage("按键映射需要启用 KeyViewer 输入法。\n\n"
+                     + "启用后点击左下角「切换输入法」即可弹出切换列表。")
+            .setPositiveButton("去启用", (d, w) -> {
+                IMEHelper.openIMESettings(this);
+            })
+            .setNegativeButton("关闭", null)
+            .show();
+    }
+
     private void updateDeleteButtonState() {
         if (keyView.isBatchEditMode()) {
             boolean hasSelection = !keyView.getSelectedKeys().isEmpty();
@@ -367,6 +519,23 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showLayerManagerPanel() {
+        if (!isLayerPanelVisible) {
+            isLayerPanelVisible = true;
+            layerManagerPanel.setVisibility(View.VISIBLE);
+            layerManagerPanel.startAnimation(AnimationUtils.loadAnimation(this, R.anim.slide_in_right));
+            layerManagerPanelController.refreshList();
+        }
+    }
+
+    private void hideLayerManagerPanel() {
+        if (isLayerPanelVisible) {
+            isLayerPanelVisible = false;
+            layerManagerPanel.startAnimation(AnimationUtils.loadAnimation(this, R.anim.slide_out_right));
+            layerManagerPanel.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (isPanelVisible && settingsPanelController != null && settingsPanelController.isListeningForKey()) {
@@ -379,7 +548,12 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (isPanelVisible) {
+        if (isLayerPanelVisible) {
+            hideLayerManagerPanel();
+        } else if (keyView.isPastingMode()) {
+            keyView.cancelPaste();
+            updateToolbarForMode();
+        } else if (isPanelVisible) {
             keyView.clearSelection();
         } else if (isGlobalPanelVisible) {
             hideGlobalSettingsPanel();

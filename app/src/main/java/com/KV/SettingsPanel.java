@@ -32,9 +32,10 @@ public class SettingsPanel {
     private View fillColorPreview;
     private EditText borderColorInput;
     private View borderColorPreview;
+    private EditText textColorInput;
+    private View textColorPreview;
     private EditText textSizeInput;
     private Switch showCountSwitch;
-    private EditText zIndexInput;
 
     private Switch mappingEnabledSwitch;
     private LinearLayout mappingSettingsContainer;
@@ -81,9 +82,10 @@ public class SettingsPanel {
         fillColorPreview = panelView.findViewById(R.id.fillColorPreview);
         borderColorInput = (EditText) panelView.findViewById(R.id.borderColorInput);
         borderColorPreview = panelView.findViewById(R.id.borderColorPreview);
+        textColorInput = (EditText) panelView.findViewById(R.id.textColorInput);
+        textColorPreview = panelView.findViewById(R.id.textColorPreview);
         textSizeInput = (EditText) panelView.findViewById(R.id.textSizeInput);
         showCountSwitch = (Switch) panelView.findViewById(R.id.showCountSwitch);
-        zIndexInput = (EditText) panelView.findViewById(R.id.zIndexInput);
 
         mappingEnabledSwitch = (Switch) panelView.findViewById(R.id.mappingEnabledSwitch);
         mappingSettingsContainer = (LinearLayout) panelView.findViewById(R.id.mappingSettingsContainer);
@@ -131,8 +133,8 @@ public class SettingsPanel {
         borderWidthInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         fillColorInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         borderColorInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        textColorInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         textSizeInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        zIndexInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         rainOffsetXInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         rainOffsetYInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         rainWidthInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
@@ -146,8 +148,8 @@ public class SettingsPanel {
         setupEditorAction(borderWidthInput, this::updateBorderWidth);
         setupEditorAction(fillColorInput, this::updateFillColor);
         setupEditorAction(borderColorInput, this::updateBorderColor);
+        setupEditorAction(textColorInput, this::updateTextColor);
         setupEditorAction(textSizeInput, this::updateTextSize);
-        setupEditorAction(zIndexInput, this::updateZIndex);
         setupEditorAction(rainOffsetXInput, this::updateRainOffsetX);
         setupEditorAction(rainOffsetYInput, this::updateRainOffsetY);
         setupEditorAction(rainWidthInput, this::updateRainWidth);
@@ -299,22 +301,24 @@ public class SettingsPanel {
         borderColorInput.setText(colorToHex(color));
     }
 
+    private void updateTextColor() {
+        String hex = textColorInput.getText().toString();
+        int color = parseColor(hex);
+        for (KeyData key : getTargetKeys()) {
+            key.textColor = color;
+        }
+        textColorPreview.setBackgroundColor(color);
+        keyView.getKeyManager().saveToPreferences();
+        keyView.invalidate();
+        
+        textColorInput.setText(colorToHex(color));
+    }
+
     private void updateTextSize() {
         try {
             float size = Float.parseFloat(textSizeInput.getText().toString());
             for (KeyData key : getTargetKeys()) {
                 key.textSizeSp = size;
-            }
-            keyView.getKeyManager().saveToPreferences();
-            keyView.invalidate();
-        } catch (NumberFormatException ignored) {}
-    }
-
-    private void updateZIndex() {
-        try {
-            int zIndex = Integer.parseInt(zIndexInput.getText().toString());
-            for (KeyData key : getTargetKeys()) {
-                key.zIndex = zIndex;
             }
             keyView.getKeyManager().saveToPreferences();
             keyView.invalidate();
@@ -389,13 +393,15 @@ public class SettingsPanel {
         borderWidthInput.setText(String.valueOf((int) firstKey.borderWidthDp));
         textSizeInput.setText(String.valueOf((int) firstKey.textSizeSp));
         showCountSwitch.setChecked(firstKey.showCount);
-        zIndexInput.setText(String.valueOf(firstKey.zIndex));
 
         fillColorInput.setText(colorToHex(firstKey.fillColor));
         fillColorPreview.setBackgroundColor(firstKey.fillColor);
 
         borderColorInput.setText(colorToHex(firstKey.borderColor));
         borderColorPreview.setBackgroundColor(firstKey.borderColor);
+
+        textColorInput.setText(colorToHex(firstKey.textColor));
+        textColorPreview.setBackgroundColor(firstKey.textColor);
 
         mappingEnabledSwitch.setChecked(firstKey.mappingEnabled);
         mappingSettingsContainer.setVisibility(firstKey.mappingEnabled ? View.VISIBLE : View.GONE);
