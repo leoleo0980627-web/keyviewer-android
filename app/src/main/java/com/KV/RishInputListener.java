@@ -23,16 +23,16 @@ public class RishInputListener {
     private boolean isListening = false;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private List<Process> currentProcesses = new CopyOnWriteArrayList<>();
-    
+
     private Map<Integer, Boolean> keyPressedState = new HashMap<>();
     private volatile boolean paused = false;
-    
+
     public RishInputListener(Context context, KeyView keyView) {
         this.context = context;
         this.keyView = keyView;
         Log.d(TAG, "RishInputListener created");
     }
-    
+
     public boolean isShizukuAvailable() {
         try {
             boolean available = Shizuku.pingBinder() && Shizuku.checkSelfPermission() == 0;
@@ -43,34 +43,38 @@ public class RishInputListener {
             return false;
         }
     }
-    
+
     public void startListening() {
         Log.d(TAG, "startListening called, isListening=" + isListening);
         if (isListening) return;
         if (!isShizukuAvailable()) return;
-        
+        if (!BinaryKeyInjector.getInstance().isRunning()) {
+            Log.d(TAG, "BinaryKeyInjector not running");
+            return;
+        }
+
         new Thread(() -> {
             isListening = true;
             Log.d(TAG, "Listener thread started");
-            
+
             Process catProcess = startMergedMonitoring();
             if (catProcess == null) {
                 Log.e(TAG, "Failed to start merged monitoring");
                 isListening = false;
                 return;
             }
-            
+
             synchronized (currentProcesses) {
                 currentProcesses.add(catProcess);
             }
-            
+
             Log.d(TAG, "Reading from merged stream...");
-            
+
             try {
                 BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(catProcess.getInputStream()));
+                        new InputStreamReader(catProcess.getInputStream()));
                 String line;
-                
+
                 while (isListening && (line = reader.readLine()) != null) {
                     String[] parts = line.trim().split("\\s+");
                     if (parts.length >= 3) {
@@ -78,49 +82,50 @@ public class RishInputListener {
                             int type = Integer.parseInt(parts[0], 16);
                             int code = Integer.parseInt(parts[1], 16);
                             int value = Integer.parseInt(parts[2], 16);
-                            
+
                             if (type == 1 && (value == 1 || value == 0)) {
                                 boolean isDown = (value == 1);
-                                
+
                                 String originalKey = keyCodeToName(code);
                                 if (originalKey == null) continue;
-                                
+
                                 if (paused) continue;
-                                
+
                                 if (!keyView.isKeyBound(originalKey)) continue;
-                                
+
                                 Boolean currentlyPressed = keyPressedState.get(code);
                                 if (currentlyPressed == null) currentlyPressed = false;
-                                
+
                                 if (currentlyPressed == isDown) continue;
-                                
+
                                 keyPressedState.put(code, isDown);
-                                
+
                                 final boolean finalIsDown = isDown;
-                                
+
                                 mainHandler.post(() -> {
                                     if (keyView != null) {
                                         keyView.notifyKeyPressed(originalKey);
                                         keyView.setKeyPressed(originalKey, finalIsDown);
-                                        
+
                                         if (finalIsDown) {
                                             keyView.getKeyManager().recordKeyPress(originalKey);
                                             keyView.invalidate();
-                                            
+
                                             String mappedKey = keyView.getMappedKey(originalKey);
                                             if (mappedKey != null && !mappedKey.equals(originalKey)) {
-                                                KeyMappingIME ime = KeyMappingIME.getInstance();
-                                                if (ime != null) {
-                                                    ime.injectKeyEvent(mappedKey);
-                                                } else {
-                                                    Log.e(TAG, "IME not available for key injection");
+                                                BinaryKeyInjector binInjector = BinaryKeyInjector.getInstance();
+                                                int linuxCode = BinaryKeyInjector.keyNameToLinuxCode(mappedKey);
+                                                if (linuxCode != -1 && binInjector.isRunning()) {
+                                                    binInjector.injectKey(linuxCode, true);
+                                                    binInjector.injectKey(linuxCode, false);
                                                 }
                                             }
                                         }
                                     }
                                 });
                             }
-                        } catch (NumberFormatException e) {}
+                        } catch (NumberFormatException e) {
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -128,21 +133,20 @@ public class RishInputListener {
             }
         }).start();
     }
-    
+
     private Process startMergedMonitoring() {
         try {
             Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
             Method method = shizukuClass.getDeclaredMethod(
-                "newProcess", String[].class, String[].class, String.class);
+                    "newProcess", String[].class, String[].class, String.class);
             method.setAccessible(true);
-            
-            // 使用匿名管道，不依赖 FIFO
-            String[] cmd = {"sh", "-c", 
-                "for f in /dev/input/event*; do " +
-                "  getevent $f 2>/dev/null & " +
-                "done | cat"
+
+            String[] cmd = {"sh", "-c",
+                    "for f in /dev/input/event*; do " +
+                            "  getevent $f 2>/dev/null & " +
+                            "done | cat"
             };
-            
+
             Process p = (Process) method.invoke(null, cmd, null, null);
             Log.d(TAG, "Merged monitoring started (anonymous pipe)");
             return p;
@@ -151,28 +155,27 @@ public class RishInputListener {
             return null;
         }
     }
-    
+
     public void pause() {
         paused = true;
         Log.d(TAG, "Input listener paused");
     }
-    
+
     public void resume() {
         paused = false;
         Log.d(TAG, "Input listener resumed");
     }
-    
+
     public void stopListening() {
         isListening = false;
         keyPressedState.clear();
-        
-        // 杀死所有 getevent 进程
+
         try {
             Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
             Method method = shizukuClass.getDeclaredMethod(
-                "newProcess", String[].class, String[].class, String.class);
+                    "newProcess", String[].class, String[].class, String.class);
             method.setAccessible(true);
-            
+
             String[] killCmd = {"sh", "-c", "killall getevent 2>/dev/null"};
             Process killP = (Process) method.invoke(null, killCmd, null, null);
             killP.waitFor();
@@ -181,8 +184,7 @@ public class RishInputListener {
         } catch (Exception e) {
             Log.e(TAG, "cleanup failed", e);
         }
-        
-        // 销毁所有 Java 进程
+
         synchronized (currentProcesses) {
             for (Process p : currentProcesses) {
                 if (p != null) p.destroy();
@@ -190,7 +192,7 @@ public class RishInputListener {
             currentProcesses.clear();
         }
     }
-    
+
     private String keyCodeToName(int code) {
         switch (code) {
             case 57: return "space";

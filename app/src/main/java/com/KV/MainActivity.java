@@ -1,6 +1,7 @@
 package com.KV;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -16,12 +17,16 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+
 import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "KV_Main";
-    
+    private static Context appContext;
+
     private KeyView keyView;
     private View settingsPanel;
     private View globalSettingsPanel;
@@ -48,11 +53,11 @@ public class MainActivity extends Activity {
     private Button floatWindowBtn;
     private Button shizukuBtn;
     private Button switchIMEBtn;
-    
+
     private GlobalSettings globalSettings;
     private RishInputListener inputListener;
     private Handler handler = new Handler();
-    
+
     private static final int REQUEST_OVERLAY_PERMISSION = 1001;
 
     private final Shizuku.OnBinderReceivedListener BINDER_RECEIVED_LISTENER = () -> {
@@ -60,8 +65,7 @@ public class MainActivity extends Activity {
         int perm = Shizuku.checkSelfPermission();
         Log.d(TAG, "Permission: " + perm);
         if (perm == PackageManager.PERMISSION_GRANTED) {
-            Log.d(TAG, "Permission granted, starting listener");
-            inputListener.startListening();
+            Log.d(TAG, "Permission granted");
             runOnUiThread(() -> {
                 shizukuBtn.setText("监听中");
                 shizukuBtn.setBackgroundColor(0xFF4CAF50);
@@ -79,26 +83,26 @@ public class MainActivity extends Activity {
         });
     };
 
-    private final Shizuku.OnRequestPermissionResultListener PERMISSION_LISTENER = 
-        (requestCode, grantResult) -> {
-            Log.d(TAG, "Permission result: " + grantResult);
-            if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                inputListener.startListening();
-                shizukuBtn.setText("监听中");
-                shizukuBtn.setBackgroundColor(0xFF4CAF50);
-                Toast.makeText(this, "授权成功，监听已启动", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "授权失败", Toast.LENGTH_SHORT).show();
-            }
-        };
+    private final Shizuku.OnRequestPermissionResultListener PERMISSION_LISTENER =
+            (requestCode, grantResult) -> {
+                Log.d(TAG, "Permission result: " + grantResult);
+                if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                    shizukuBtn.setText("监听中");
+                    shizukuBtn.setBackgroundColor(0xFF4CAF50);
+                    Toast.makeText(this, "授权成功", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "授权失败", Toast.LENGTH_SHORT).show();
+                }
+            };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        appContext = getApplicationContext();
         globalSettings = GlobalSettings.getInstance(this);
-        
+
         keyView = findViewById(R.id.keyView);
         settingsPanel = findViewById(R.id.settingsPanel);
         globalSettingsPanel = findViewById(R.id.globalSettingsPanel);
@@ -123,12 +127,14 @@ public class MainActivity extends Activity {
         settingsPanelController = new SettingsPanel(this, settingsPanel, keyView);
         globalSettingsPanelController = new GlobalSettingsPanel(this, globalSettingsPanel, keyView);
         layerManagerPanelController = new LayerManagerPanel(this, layerManagerPanel, keyView);
-        
+
         inputListener = new RishInputListener(this, keyView);
-        
+
         FloatService.setSharedKeyView(keyView);
         settingsPanelController.setInputListener(inputListener);
-        
+
+        extractKvBinary();
+
         Shizuku.addBinderReceivedListener(BINDER_RECEIVED_LISTENER);
         Shizuku.addBinderDeadListener(BINDER_DEAD_LISTENER);
         Shizuku.addRequestPermissionResultListener(PERMISSION_LISTENER);
@@ -185,30 +191,22 @@ public class MainActivity extends Activity {
         zoomResetBtn.setOnClickListener(v -> keyView.zoomReset());
 
         globalSettingsBtn.setOnClickListener(v -> {
-            if (isPanelVisible) {
-                hideSettingsPanel();
-            }
-            if (isLayerPanelVisible) {
-                hideLayerManagerPanel();
-            }
+            if (isPanelVisible) hideSettingsPanel();
+            if (isLayerPanelVisible) hideLayerManagerPanel();
             showGlobalSettingsPanel();
         });
 
         layerManagerBtn.setOnClickListener(v -> {
-            if (isPanelVisible) {
-                hideSettingsPanel();
-            }
-            if (isGlobalPanelVisible) {
-                hideGlobalSettingsPanel();
-            }
+            if (isPanelVisible) hideSettingsPanel();
+            if (isGlobalPanelVisible) hideGlobalSettingsPanel();
             showLayerManagerPanel();
         });
 
         switchIMEBtn.setOnClickListener(v -> {
             boolean enabled = IMEHelper.isKeyViewerIMEEnabled(this);
             if (enabled) {
-                android.view.inputmethod.InputMethodManager imm = 
-                    (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                android.view.inputmethod.InputMethodManager imm =
+                        (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
                 imm.showInputMethodPicker();
             } else {
                 showIMEDialog();
@@ -220,7 +218,7 @@ public class MainActivity extends Activity {
                 toggleFloatWindow();
             }
         });
-        
+
         shizukuBtn.setOnClickListener(v -> {
             Log.d(TAG, "Shizuku button clicked");
             requestShizukuPermission();
@@ -230,12 +228,8 @@ public class MainActivity extends Activity {
             updateDeleteButtonState();
             updateToolbarForMode();
             if (hasSelection) {
-                if (isGlobalPanelVisible) {
-                    hideGlobalSettingsPanel();
-                }
-                if (isLayerPanelVisible) {
-                    hideLayerManagerPanel();
-                }
+                if (isGlobalPanelVisible) hideGlobalSettingsPanel();
+                if (isLayerPanelVisible) hideLayerManagerPanel();
                 showSettingsPanel();
             } else {
                 hideSettingsPanel();
@@ -252,16 +246,12 @@ public class MainActivity extends Activity {
             @Override
             public void onFloatScaleChanged(float scale) {
                 FloatService service = FloatService.getInstance();
-                if (service != null) {
-                    service.updateScale();
-                }
+                if (service != null) service.updateScale();
             }
-
             @Override
             public void onCountsReset() {
                 keyView.invalidate();
             }
-
             @Override
             public void onFloatPositionReset() {
                 FloatService service = FloatService.getInstance();
@@ -269,7 +259,6 @@ public class MainActivity extends Activity {
                     service.getFloatView().updatePositionFromSettings();
                 }
             }
-
             @Override
             public void onConfigImported() {
                 FloatService service = FloatService.getInstance();
@@ -285,89 +274,75 @@ public class MainActivity extends Activity {
             }
         });
 
-        globalSettingsPanelController.setOnCloseRequestedListener(() -> {
-            hideGlobalSettingsPanel();
-        });
-
+        globalSettingsPanelController.setOnCloseRequestedListener(() -> hideGlobalSettingsPanel());
         layerManagerPanelController.setOnLayerChangedListener(() -> {
-            if (isPanelVisible) {
-                settingsPanelController.syncFromKeyView();
-            }
+            if (isPanelVisible) settingsPanelController.syncFromKeyView();
             keyView.invalidate();
         });
-
-        layerManagerPanelController.setOnCloseRequestedListener(() -> {
-            hideLayerManagerPanel();
-        });
+        layerManagerPanelController.setOnCloseRequestedListener(() -> hideLayerManagerPanel());
 
         updateDeleteButtonState();
         updateFloatWindowButton();
         updateSwitchIMEButton();
         updateToolbarForMode();
         batchEditBtn.setAlpha(0.5f);
-        
+
         checkShizukuStatus();
     }
 
-    private void updateToolbarForMode() {
-        boolean isPasting = keyView.isPastingMode();
-        boolean isBatch = keyView.isBatchEditMode();
-        boolean hasSelection = !keyView.getSelectedKeys().isEmpty();
-        boolean hasClipboard = !keyView.getKeyManager().getClipboard().isEmpty();
-        
-        if (isPasting) {
-            addKeyBtn.setVisibility(View.GONE);
-            deleteKeyBtn.setVisibility(View.GONE);
-            copyBtn.setVisibility(View.GONE);
-            pasteBtn.setVisibility(View.GONE);
-            batchEditBtn.setVisibility(View.GONE);
-            confirmPasteBtn.setVisibility(View.VISIBLE);
-            cancelPasteBtn.setVisibility(View.VISIBLE);
-        } else if (isBatch) {
-            addKeyBtn.setVisibility(View.VISIBLE);
-            deleteKeyBtn.setVisibility(View.VISIBLE);
-            deleteKeyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
-            deleteKeyBtn.setEnabled(hasSelection);
-            copyBtn.setVisibility(View.VISIBLE);
-            copyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
-            copyBtn.setEnabled(hasSelection);
-            pasteBtn.setVisibility(View.VISIBLE);
-            pasteBtn.setAlpha(hasClipboard ? 1.0f : 0.5f);
-            pasteBtn.setEnabled(hasClipboard);
-            batchEditBtn.setVisibility(View.VISIBLE);
-            confirmPasteBtn.setVisibility(View.GONE);
-            cancelPasteBtn.setVisibility(View.GONE);
-        } else {
-            addKeyBtn.setVisibility(View.VISIBLE);
-            deleteKeyBtn.setVisibility(View.VISIBLE);
-            boolean hasSelected = keyView.getSelectedKey() != null;
-            deleteKeyBtn.setAlpha(hasSelected ? 1.0f : 0.5f);
-            deleteKeyBtn.setEnabled(hasSelected);
-            copyBtn.setVisibility(View.GONE);
-            pasteBtn.setVisibility(View.GONE);
-            batchEditBtn.setVisibility(View.VISIBLE);
-            confirmPasteBtn.setVisibility(View.GONE);
-            cancelPasteBtn.setVisibility(View.GONE);
-        }
+    public static Context getAppContext() {
+        return appContext;
     }
-    
+
+    private void extractKvBinary() {
+        new Thread(() -> {
+            try {
+                java.io.File destFile = new java.io.File("/data/local/tmp/kv");
+                if (destFile.exists()) {
+                    Log.d(TAG, "kv binary already exists");
+                    return;
+                }
+                Log.d(TAG, "Extracting kv binary...");
+
+                InputStream is = getAssets().open("kv");
+                Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
+                java.lang.reflect.Method method = shizukuClass.getDeclaredMethod(
+                        "newProcess", String[].class, String[].class, String.class);
+                method.setAccessible(true);
+
+                String[] cmd = {"sh", "-c", "cat > /data/local/tmp/kv && chmod 755 /data/local/tmp/kv"};
+                Process p = (Process) method.invoke(null, cmd, null, null);
+                OutputStream os = p.getOutputStream();
+                byte[] buffer = new byte[8192];
+                int len;
+                while ((len = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, len);
+                }
+                os.close();
+                is.close();
+                p.waitFor();
+                p.destroy();
+
+                Log.d(TAG, "kv binary extracted successfully");
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to extract kv binary", e);
+            }
+        }).start();
+    }
+
     private void checkShizukuStatus() {
         Log.d(TAG, "checkShizukuStatus");
         try {
             if (Shizuku.pingBinder()) {
-                Log.d(TAG, "Shizuku binder is alive");
                 int perm = Shizuku.checkSelfPermission();
-                Log.d(TAG, "Permission: " + perm);
                 if (perm == PackageManager.PERMISSION_GRANTED) {
                     shizukuBtn.setText("监听中");
                     shizukuBtn.setBackgroundColor(0xFF4CAF50);
-                    inputListener.startListening();
                 } else {
                     shizukuBtn.setText("授权 Shizuku");
                     shizukuBtn.setBackgroundColor(0xFFFF9800);
                 }
             } else {
-                Log.d(TAG, "Shizuku binder not alive");
                 shizukuBtn.setText("请启动 Shizuku");
                 shizukuBtn.setBackgroundColor(0xFFF44336);
             }
@@ -377,21 +352,18 @@ public class MainActivity extends Activity {
             shizukuBtn.setBackgroundColor(0xFFF44336);
         }
     }
-    
+
     private void requestShizukuPermission() {
-        Log.d(TAG, "requestShizukuPermission");
         try {
             if (!Shizuku.pingBinder()) {
                 Toast.makeText(this, "请先启动 Shizuku", Toast.LENGTH_SHORT).show();
                 return;
             }
-            
             int perm = Shizuku.checkSelfPermission();
             if (perm == PackageManager.PERMISSION_GRANTED) {
                 shizukuBtn.setText("监听中");
                 shizukuBtn.setBackgroundColor(0xFF4CAF50);
-                inputListener.startListening();
-                Toast.makeText(this, "监听已启动", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "已授权", Toast.LENGTH_SHORT).show();
             } else {
                 Shizuku.requestPermission(0);
                 Toast.makeText(this, "请在弹出的窗口中授权", Toast.LENGTH_SHORT).show();
@@ -431,14 +403,27 @@ public class MainActivity extends Activity {
     private void toggleFloatWindow() {
         globalSettings.floatWindowEnabled = !globalSettings.floatWindowEnabled;
         globalSettings.save();
-        
+
         if (globalSettings.floatWindowEnabled) {
-            startService(new Intent(this, FloatService.class));
+            updateFloatWindowButton();
+            new Thread(() -> {
+                BinaryKeyInjector injector = BinaryKeyInjector.getInstance();
+                if (!injector.isRunning()) {
+                    injector.start();
+                }
+                runOnUiThread(() -> {
+                    inputListener.startListening();
+                    startService(new Intent(MainActivity.this, FloatService.class));
+                });
+            }).start();
         } else {
-            stopService(new Intent(this, FloatService.class));
+            updateFloatWindowButton();
+            new Thread(() -> {
+                BinaryKeyInjector.getInstance().stop();
+                inputListener.stopListening();
+            }).start();
+            stopService(new Intent(MainActivity.this, FloatService.class));
         }
-        
-        updateFloatWindowButton();
     }
 
     private void updateFloatWindowButton() {
@@ -463,14 +448,11 @@ public class MainActivity extends Activity {
 
     private void showIMEDialog() {
         new android.app.AlertDialog.Builder(this)
-            .setTitle("未启用输入法")
-            .setMessage("按键映射需要启用 KeyViewer 输入法。\n\n"
-                     + "启用后点击左下角「切换输入法」即可弹出切换列表。")
-            .setPositiveButton("去启用", (d, w) -> {
-                IMEHelper.openIMESettings(this);
-            })
-            .setNegativeButton("关闭", null)
-            .show();
+                .setTitle("未启用输入法")
+                .setMessage("按键映射需要启用 KeyViewer 输入法。\n\n启用后点击左下角「切换输入法」即可弹出切换列表。")
+                .setPositiveButton("去启用", (d, w) -> IMEHelper.openIMESettings(this))
+                .setNegativeButton("关闭", null)
+                .show();
     }
 
     private void updateDeleteButtonState() {
@@ -482,6 +464,48 @@ public class MainActivity extends Activity {
             boolean hasSelection = keyView.getSelectedKey() != null;
             deleteKeyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
             deleteKeyBtn.setEnabled(hasSelection);
+        }
+    }
+
+    private void updateToolbarForMode() {
+        boolean isPasting = keyView.isPastingMode();
+        boolean isBatch = keyView.isBatchEditMode();
+        boolean hasSelection = !keyView.getSelectedKeys().isEmpty();
+        boolean hasClipboard = !keyView.getKeyManager().getClipboard().isEmpty();
+
+        if (isPasting) {
+            addKeyBtn.setVisibility(View.GONE);
+            deleteKeyBtn.setVisibility(View.GONE);
+            copyBtn.setVisibility(View.GONE);
+            pasteBtn.setVisibility(View.GONE);
+            batchEditBtn.setVisibility(View.GONE);
+            confirmPasteBtn.setVisibility(View.VISIBLE);
+            cancelPasteBtn.setVisibility(View.VISIBLE);
+        } else if (isBatch) {
+            addKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
+            deleteKeyBtn.setEnabled(hasSelection);
+            copyBtn.setVisibility(View.VISIBLE);
+            copyBtn.setAlpha(hasSelection ? 1.0f : 0.5f);
+            copyBtn.setEnabled(hasSelection);
+            pasteBtn.setVisibility(View.VISIBLE);
+            pasteBtn.setAlpha(hasClipboard ? 1.0f : 0.5f);
+            pasteBtn.setEnabled(hasClipboard);
+            batchEditBtn.setVisibility(View.VISIBLE);
+            confirmPasteBtn.setVisibility(View.GONE);
+            cancelPasteBtn.setVisibility(View.GONE);
+        } else {
+            addKeyBtn.setVisibility(View.VISIBLE);
+            deleteKeyBtn.setVisibility(View.VISIBLE);
+            boolean hasSelected = keyView.getSelectedKey() != null;
+            deleteKeyBtn.setAlpha(hasSelected ? 1.0f : 0.5f);
+            deleteKeyBtn.setEnabled(hasSelected);
+            copyBtn.setVisibility(View.GONE);
+            pasteBtn.setVisibility(View.GONE);
+            batchEditBtn.setVisibility(View.VISIBLE);
+            confirmPasteBtn.setVisibility(View.GONE);
+            cancelPasteBtn.setVisibility(View.GONE);
         }
     }
 
@@ -561,10 +585,16 @@ public class MainActivity extends Activity {
             super.onBackPressed();
         }
     }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        BinaryKeyInjector injector = BinaryKeyInjector.getInstance();
+        if (injector.isRunning()) {
+            injector.stop();
+        }
+
         Shizuku.removeBinderReceivedListener(BINDER_RECEIVED_LISTENER);
         Shizuku.removeBinderDeadListener(BINDER_DEAD_LISTENER);
         Shizuku.removeRequestPermissionResultListener(PERMISSION_LISTENER);

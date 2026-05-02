@@ -26,7 +26,17 @@ android {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.0.0'
-	implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    implementation 'androidx.recyclerview:recyclerview:1.2.1'
     implementation 'dev.rikka.shizuku:api:13.1.5'
     implementation 'dev.rikka.shizuku:provider:13.1.5'
+}
+
+// ========== 最终、最狠的 strip 任务终结者 ==========
+afterEvaluate {
+    tasks.all { task ->
+        if (task.name ==~ /strip.*DebugSymbols/ || task.name ==~ /strip.*ReleaseSymbols/) {
+            println "INFO: Disabling task '${task.name}' completely."
+            task.enabled = false
+        }
+    }
 }

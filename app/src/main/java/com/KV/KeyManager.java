@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,8 +21,8 @@ public class KeyManager {
     private String selectedKeyId = null;
     
     private int totalPressCount = 0;
-    private long[] recentPressTimes = new long[60];
-    private int recentIndex = 0;
+    private LinkedList<Long> recentPressTimes = new LinkedList<>();
+    private static final int MAX_RECENT_SIZE = 300;
     
     private static final String PREFS_NAME = "keyviewer_prefs";
     private static final String KEY_TOTAL = "total_press_count";
@@ -28,7 +30,6 @@ public class KeyManager {
     
     private Context context;
     
-    // 剪贴板
     private List<KeyData> clipboard = new ArrayList<>();
     
     public KeyManager() {
@@ -151,8 +152,16 @@ public class KeyManager {
         totalPressCount++;
         
         long now = System.currentTimeMillis();
-        recentPressTimes[recentIndex] = now;
-        recentIndex = (recentIndex + 1) % recentPressTimes.length;
+        recentPressTimes.addLast(now);
+        
+        long oneSecondAgo = now - 1000;
+        while (!recentPressTimes.isEmpty() && recentPressTimes.getFirst() < oneSecondAgo) {
+            recentPressTimes.removeFirst();
+        }
+        
+        while (recentPressTimes.size() > MAX_RECENT_SIZE) {
+            recentPressTimes.removeFirst();
+        }
         
         saveCountsToPreferences();
     }
@@ -172,11 +181,17 @@ public class KeyManager {
     public int getKPS() {
         long now = System.currentTimeMillis();
         long oneSecondAgo = now - 1000;
-        int count = 0;
-        for (long time : recentPressTimes) {
-            if (time > oneSecondAgo) count++;
+        
+        Iterator<Long> iterator = recentPressTimes.iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next() < oneSecondAgo) {
+                iterator.remove();
+            } else {
+                break;
+            }
         }
-        return count;
+        
+        return recentPressTimes.size();
     }
     
     public Map<String, Integer> getKeyCodeCount() {
@@ -186,10 +201,7 @@ public class KeyManager {
     public void resetAllCounts() {
         keyCodeCount.clear();
         totalPressCount = 0;
-        for (int i = 0; i < recentPressTimes.length; i++) {
-            recentPressTimes[i] = 0;
-        }
-        recentIndex = 0;
+        recentPressTimes.clear();
         saveCountsToPreferences();
     }
     
