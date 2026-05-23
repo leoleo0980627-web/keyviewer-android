@@ -1,3 +1,5 @@
+vibe codeing with deepseek codex kimi
+
 # KeyViewer for Android
 
 KeyViewer 是一個 Android 上的鍵盤可視化工具，用來顯示實體鍵盤按鍵、統計 KPS / TOTAL、編輯按鍵外觀，並可把畫面以懸浮窗方式疊在其他 App 上。
