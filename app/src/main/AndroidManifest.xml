@@ -3,6 +3,7 @@
     package="com.KV">
 
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <uses-permission android:name="rikka.shizuku.API_PERMISSION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
@@ -17,7 +18,7 @@
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
         android:requestLegacyExternalStorage="true">
-        
+
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
@@ -25,26 +26,21 @@
             android:exported="true"
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
-        
-        <meta-data
-            android:name="moe.shizuku.client.V3_SUPPORT"
-            android:value="true" />
-        
-        <meta-data
-            android:name="moe.shizuku.client.SUI_DISABLED"
-            android:value="true" />
-        
-        <activity 
+
+        <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true" />
+        <meta-data android:name="moe.shizuku.client.SUI_DISABLED" android:value="true" />
+
+        <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode"
             android:hardwareAccelerated="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
+
         <service android:name=".FloatService" />
 
         <service
@@ -54,11 +50,9 @@
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/method" />
+            <meta-data android:name="android.view.im" android:resource="@xml/method" />
         </service>
-        
+
     </application>
 
 </manifest>

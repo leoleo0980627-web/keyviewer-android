@@ -11,6 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- 标题行 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -37,7 +38,52 @@
 
         </LinearLayout>
 
-        <!-- 悬浮窗缩放 -->
+        <!-- ===== 深色模式切换 ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="深色模式"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="8dp" />
+
+        <FrameLayout
+            android:id="@+id/darkModeContainer"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginBottom="20dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/bg_dark_mode_track">
+
+            <View
+                android:id="@+id/darkModeSlider"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_gravity="start"
+                android:background="@drawable/bg_dark_mode_slider" />
+
+            <ImageView
+                android:id="@+id/sunIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="12dp"
+                android:src="@drawable/ic_sun"
+                android:tint="#757575" />
+
+            <ImageView
+                android:id="@+id/moonIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_moon"
+                android:tint="#757575" />
+
+        </FrameLayout>
+
+        <!-- ===== 悬浮窗缩放 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -78,7 +124,7 @@
 
         </LinearLayout>
 
-        <!-- 键雨高度 -->
+        <!-- ===== 键雨最大高度 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -93,6 +139,27 @@
             android:layout_height="48dp"
             android:inputType="number"
             android:text="200"
+            android:textSize="14sp"
+            android:padding="8dp"
+            android:background="#FFF"
+            android:layout_marginBottom="12dp"
+            android:imeOptions="actionDone" />
+
+        <!-- ===== 键雨预留高度 ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="键雨预留高度"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/rainReserveHeightInput"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:inputType="number"
+            android:text="10"
             android:textSize="14sp"
             android:padding="8dp"
             android:background="#FFF"

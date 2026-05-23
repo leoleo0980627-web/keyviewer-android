@@ -4,5 +4,14 @@
         <item name="colorPrimary">#2196F3</item>
         <item name="colorPrimaryDark">#1976D2</item>
         <item name="colorAccent">#FF4081</item>
+        <item name="android:windowBackground">#F5F5F5</item>
+    </style>
+    
+    <style name="AppTheme.Dark" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">#2196F3</item>
+        <item name="colorPrimaryDark">#1976D2</item>
+        <item name="colorAccent">#FF4081</item>
+        <item name="android:windowBackground">#1E1E1E</item>
+        <item name="android:textColor">#FFFFFF</item>
     </style>
 </resources>

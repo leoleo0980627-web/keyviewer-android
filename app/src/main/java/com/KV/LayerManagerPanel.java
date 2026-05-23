@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -23,6 +24,7 @@ public class LayerManagerPanel {
     private View panelView;
     private KeyView keyView;
     private KeyManager keyManager;
+    private GlobalSettings globalSettings;
     
     private RecyclerView layerRecyclerView;
     private LayerAdapter adapter;
@@ -33,52 +35,75 @@ public class LayerManagerPanel {
         void onLayerChanged();
     }
     
-    public interface OnCloseRequestedListener {
-        void onCloseRequested();
-    }
-    
     private OnLayerChangedListener listener;
-    private OnCloseRequestedListener closeListener;
     
     public LayerManagerPanel(Activity activity, View panelView, KeyView keyView) {
         this.activity = activity;
         this.panelView = panelView;
         this.keyView = keyView;
         this.keyManager = keyView.getKeyManager();
+        this.globalSettings = GlobalSettings.getInstance(activity);
         
         initViews();
         setupRecyclerView();
+        applyDarkMode();
+    }
+    
+    private void applyDarkMode() {
+        boolean isDarkMode = globalSettings.darkModeEnabled;
+        int bgColor = isDarkMode ? 0xFF2C2C2C : 0xFFF5F5F5;
+        panelView.setBackgroundColor(bgColor);
+        
+        TextView closeBtn = panelView.findViewById(R.id.closeLayerPanelBtn);
+        if (closeBtn != null) {
+            closeBtn.setTextColor(isDarkMode ? 0xFFFFFFFF : 0xFF333333);
+        }
+        
+        Button autoArrangeBtn = panelView.findViewById(R.id.autoArrangeBtn);
+        if (autoArrangeBtn != null) {
+            autoArrangeBtn.setTextColor(isDarkMode ? 0xFFFFFFFF : 0xFF333333);
+        }
+        
+        Button resetZIndexBtn = panelView.findViewById(R.id.resetZIndexBtn);
+        if (resetZIndexBtn != null) {
+            resetZIndexBtn.setTextColor(isDarkMode ? 0xFFFFFFFF : 0xFF333333);
+        }
+        
+        if (layerRecyclerView != null) {
+            int recyclerBg = isDarkMode ? 0xFF3C3C3C : 0xFFFFFFFF;
+            layerRecyclerView.setBackgroundColor(recyclerBg);
+        }
+    }
+    
+    public void onDarkModeChanged() {
+        applyDarkMode();
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
     }
     
     public void setOnLayerChangedListener(OnLayerChangedListener listener) {
         this.listener = listener;
     }
     
-    public void setOnCloseRequestedListener(OnCloseRequestedListener listener) {
-        this.closeListener = listener;
-    }
-    
     private void initViews() {
         layerRecyclerView = panelView.findViewById(R.id.layerRecyclerView);
         
-        panelView.findViewById(R.id.closeLayerPanelBtn).setOnClickListener(v -> {
-            if (closeListener != null) {
-                closeListener.onCloseRequested();
-            }
-        });
+        View closeBtn = panelView.findViewById(R.id.closeLayerPanelBtn);
+        if (closeBtn != null) {
+            closeBtn.setOnClickListener(v -> {
+                panelView.setVisibility(View.GONE);
+            });
+        }
         
         View autoArrangeBtn = panelView.findViewById(R.id.autoArrangeBtn);
         if (autoArrangeBtn != null) {
-            autoArrangeBtn.setOnClickListener(v -> {
-                autoArrange();
-            });
+            autoArrangeBtn.setOnClickListener(v -> autoArrange());
         }
         
         View resetZIndexBtn = panelView.findViewById(R.id.resetZIndexBtn);
         if (resetZIndexBtn != null) {
-            resetZIndexBtn.setOnClickListener(v -> {
-                resetAllZIndex();
-            });
+            resetZIndexBtn.setOnClickListener(v -> resetAllZIndex());
         }
     }
     
@@ -138,15 +163,20 @@ public class LayerManagerPanel {
         List<KeyData> adapterKeys = adapter.keys;
         List<KeyData> managerKeys = keyManager.getKeys();
         
+        // RecyclerView 顶部 = 最上层（最大 zIndex）
+        // 顶部位置 0 -> zIndex = N（最大）
+        // 底部位置 N-1 -> zIndex = 1（最小）
         for (int i = 0; i < adapterKeys.size(); i++) {
+            int newZIndex = adapterKeys.size() - i;
             KeyData adapterKey = adapterKeys.get(i);
+            adapterKey.zIndex = newZIndex;
+            
             for (KeyData managerKey : managerKeys) {
                 if (managerKey.id.equals(adapterKey.id)) {
-                    managerKey.zIndex = adapterKeys.size() - i;
+                    managerKey.zIndex = newZIndex;
                     break;
                 }
             }
-            adapterKey.zIndex = adapterKeys.size() - i;
         }
         
         keyManager.saveToPreferences();
@@ -164,21 +194,25 @@ public class LayerManagerPanel {
         List<KeyData> adapterKeys = adapter.keys;
         List<KeyData> managerKeys = keyManager.getKeys();
         
+        // 按位置排序：从左到右，从下到上
+        // 越靠下的按键层级越高（zIndex 越大）
         Collections.sort(adapterKeys, (a, b) -> {
-            float yDiff = b.centerY - a.centerY;
-            if (Math.abs(yDiff) > Math.min(a.height, b.height) / 2) {
-                return Float.compare(b.centerY, a.centerY);
+            float xDiff = a.centerX - b.centerX;
+            if (Math.abs(xDiff) > Math.min(a.width, b.width) / 2) {
+                return Float.compare(a.centerX, b.centerX); // 从左到右
             }
-            return Float.compare(a.centerX, b.centerX);
+            return Float.compare(b.centerY, a.centerY); // 从下到上（注意 b 和 a 的顺序）
         });
         
+        // 分配 zIndex：顶部（列表前面）= 最大 zIndex
         for (int i = 0; i < adapterKeys.size(); i++) {
+            int newZIndex = adapterKeys.size() - i;
             KeyData adapterKey = adapterKeys.get(i);
-            adapterKey.zIndex = adapterKeys.size() - i;
+            adapterKey.zIndex = newZIndex;
             
             for (KeyData managerKey : managerKeys) {
                 if (managerKey.id.equals(adapterKey.id)) {
-                    managerKey.zIndex = adapterKeys.size() - i;
+                    managerKey.zIndex = newZIndex;
                     break;
                 }
             }
@@ -196,9 +230,8 @@ public class LayerManagerPanel {
     }
     
     private void resetAllZIndex() {
-        for (KeyData key : keyManager.getKeys()) {
-            key.zIndex = 0;
-        }
+        // 使用 KeyManager 的统一规范化方法
+        keyManager.normalizeZIndexes();
         keyManager.saveToPreferences();
         keyView.invalidate();
         keyView.requestLayout();
@@ -211,6 +244,7 @@ public class LayerManagerPanel {
     
     public void show() {
         refreshList();
+        applyDarkMode();
         panelView.setVisibility(View.VISIBLE);
     }
     
@@ -231,8 +265,9 @@ public class LayerManagerPanel {
         }
         
         public void updateKeys() {
-            keys = new ArrayList<>(keyManager.getKeys());
-            Collections.sort(keys, (a, b) -> Integer.compare(b.zIndex, a.zIndex));
+            // 使用 KeyManager 的统一排序方法（zIndex 降序）
+            // 列表顶部显示最上层按键
+            keys = keyManager.getKeysSortedByZIndex();
             notifyDataSetChanged();
         }
         
@@ -246,22 +281,38 @@ public class LayerManagerPanel {
         @Override
         public void onBindViewHolder(ViewHolder holder, int position) {
             KeyData key = keys.get(position);
+            boolean isDarkMode = globalSettings.darkModeEnabled;
             
             String displayName = getDisplayName(key);
             holder.keyNameText.setText(displayName);
             holder.zIndexText.setText(String.valueOf(key.zIndex));
             
-            int color = key.fillColor;
+            int color = key.fillColorUp;
             holder.colorIndicator.setBackgroundColor(color);
             
             KeyData selectedKey = keyManager.getSelectedKey();
             if (selectedKey != null && key.id.equals(selectedKey.id)) {
-                holder.itemView.setBackgroundColor(0xFFE3F2FD);
+                if (isDarkMode) {
+                    holder.itemView.setBackgroundColor(0xFF3A5A7A);
+                } else {
+                    holder.itemView.setBackgroundColor(0xFFE3F2FD);
+                }
             } else {
-                holder.itemView.setBackgroundColor(Color.WHITE);
+                if (isDarkMode) {
+                    holder.itemView.setBackgroundColor(0xFF3C3C3C);
+                } else {
+                    holder.itemView.setBackgroundColor(Color.WHITE);
+                }
             }
             
-            // 点击列表项：选中对应格子，自动触发设置面板
+            int textColor = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+            holder.keyNameText.setTextColor(textColor);
+            holder.zIndexText.setTextColor(isDarkMode ? 0xFFAAAAAA : 0xFF999999);
+            
+            if (holder.dragHandle != null) {
+                holder.dragHandle.setColorFilter(isDarkMode ? 0xFFFFFFFF : 0xFF999999);
+            }
+            
             holder.itemView.setOnClickListener(v -> {
                 keyView.selectKeyById(key.id);
                 notifyDataSetChanged();

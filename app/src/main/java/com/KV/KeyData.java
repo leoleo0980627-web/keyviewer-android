@@ -3,7 +3,6 @@ package com.KV;
 import android.graphics.RectF;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class KeyData {
     public String id;
@@ -14,23 +13,38 @@ public class KeyData {
     
     public String boundKey = "未绑定";
     public String displayLabel = "";
-    public int fillColor = 0xFF999999;
-    public int borderColor = 0xFF666666;
+    
+    // ===== 形状设置 =====
     public float cornerRadiusDp = 8f;
     public float borderWidthDp = 5f;
     
-    public int pressCount = 0;
+    // ===== 颜色：放开时 =====
+    public int fillColorUp = 0xFF999999;
+    public int borderColorUp = 0xFF666666;
+    public int textColorUp = 0xFFFFFFFF;
+    public int countColorUp = 0xFFFFFFFF;
     
-    // 文字设置
+    // ===== 颜色：按下时 =====
+    public int fillColorDown = 0xFFFFFFFF;
+    public int borderColorDown = 0xFF666666;
+    public int textColorDown = 0xFFFFFFFF;
+    public int countColorDown = 0xFFFFFFFF;
+    
+    // ===== 旧字段兼容（保留但不再使用）=====
+    @Deprecated
+    public int fillColor = 0xFF999999;
+    @Deprecated
+    public int borderColor = 0xFF666666;
+    
+    // ===== 文字设置 =====
     public float textSizeSp = 14f;
     public boolean showCount = true;
-    public int textColor = 0xFFFFFFFF;
     
-    // 映射按键
+    // ===== 映射按键 =====
     public boolean mappingEnabled = false;
     public String mappedKey = "";
     
-    // 键雨设置
+    // ===== 键雨设置 =====
     public boolean rainEnabled = false;
     public float rainOffsetXDp = 0f;
     public float rainOffsetYDp = 0f;
@@ -38,15 +52,17 @@ public class KeyData {
     public int rainColor = 0xFFFFFFFF;
     public float rainSpeedDp = 5f;
     
-    // 图层顺序（数字越大越靠上）
+    // ===== KPS/TOTAL 特殊控制 =====
+    public boolean kpsTotalNoWrap = false;
+    public float kpsTotalLabelOffsetX = 0f;
+    
+    // ===== 图层顺序 =====
     public int zIndex = 0;
     
-    // 按键状态
+    // ===== 运行时状态 =====
     public boolean isPressed = false;
     public boolean isKeyPressed = false;
     public long lastParticleTime = 0;
-    
-    // 键雨粒子
     public List<RainParticle> rainParticles = new ArrayList<>();
     
     public transient RectF rect = new RectF();
@@ -57,29 +73,6 @@ public class KeyData {
         this.centerY = centerY;
         this.width = width;
         this.height = height;
-    }
-    
-    public KeyData clone() {
-        KeyData clone = new KeyData(UUID.randomUUID().toString(), centerX, centerY, width, height);
-        clone.boundKey = this.boundKey;
-        clone.displayLabel = this.displayLabel;
-        clone.fillColor = this.fillColor;
-        clone.borderColor = this.borderColor;
-        clone.cornerRadiusDp = this.cornerRadiusDp;
-        clone.borderWidthDp = this.borderWidthDp;
-        clone.textSizeSp = this.textSizeSp;
-        clone.showCount = this.showCount;
-        clone.textColor = this.textColor;
-        clone.mappingEnabled = this.mappingEnabled;
-        clone.mappedKey = this.mappedKey;
-        clone.rainEnabled = this.rainEnabled;
-        clone.rainOffsetXDp = this.rainOffsetXDp;
-        clone.rainOffsetYDp = this.rainOffsetYDp;
-        clone.rainWidthPercent = this.rainWidthPercent;
-        clone.rainColor = this.rainColor;
-        clone.rainSpeedDp = this.rainSpeedDp;
-        clone.zIndex = this.zIndex;
-        return clone;
     }
     
     public boolean isSpecialKey() {
@@ -93,6 +86,16 @@ public class KeyData {
             return displayLabel;
         }
         return boundKey;
+    }
+    
+    public void migrateFromOldFields() {
+        if (fillColorUp == 0xFF999999 && fillColor != 0xFF999999) {
+            fillColorUp = fillColor;
+        }
+        if (borderColorUp == 0xFF666666 && borderColor != 0xFF666666) {
+            borderColorUp = borderColor;
+            borderColorDown = borderColor;
+        }
     }
     
     public static class RainParticle {

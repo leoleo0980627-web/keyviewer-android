@@ -11,6 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <!-- 标题 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -20,7 +21,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
-        <!-- 按键绑定 -->
+        <!-- ===== 按键绑定 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -39,7 +40,7 @@
             android:textColor="#FFF"
             android:layout_marginBottom="20dp" />
 
-        <!-- 映射按键 -->
+        <!-- ===== 映射按键 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -77,13 +78,14 @@
 
         </LinearLayout>
 
-        <!-- 显示文字 -->
+        <!-- ===== 显示文字 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="显示文字"
             android:textSize="14sp"
             android:textColor="#666"
+            android:layout_marginTop="12dp"
             android:layout_marginBottom="4dp" />
 
         <EditText
@@ -99,7 +101,7 @@
             android:imeOptions="actionDone"
             android:inputType="text" />
 
-        <!-- 文字大小 -->
+        <!-- ===== 文字大小 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -120,43 +122,7 @@
             android:layout_marginBottom="20dp"
             android:imeOptions="actionDone" />
 
-        <!-- 文字颜色 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="文字颜色"
-            android:textSize="14sp"
-            android:textColor="#666"
-            android:layout_marginBottom="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
-
-            <EditText
-                android:id="@+id/textColorInput"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:text="#FFFFFF"
-                android:textSize="14sp"
-                android:padding="8dp"
-                android:background="#FFF"
-                android:layout_marginEnd="8dp"
-                android:imeOptions="actionDone"
-                android:inputType="text" />
-
-            <View
-                android:id="@+id/textColorPreview"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="#FFFFFF" />
-
-        </LinearLayout>
-
-        <!-- 显示按键次数 -->
+        <!-- ===== 显示按键次数 ===== -->
         <Switch
             android:id="@+id/showCountSwitch"
             android:layout_width="match_parent"
@@ -165,7 +131,45 @@
             android:textSize="14sp"
             android:layout_marginBottom="8dp" />
 
-        <!-- 尺寸设置 -->
+        <!-- ===== 图层顺序 ===== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="图层顺序"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="4dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <EditText
+                android:id="@+id/zIndexInput"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:inputType="number"
+                android:text="0"
+                android:textSize="14sp"
+                android:padding="8dp"
+                android:background="#FFF"
+                android:imeOptions="actionDone" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:text="  数字越大越靠上"
+                android:textSize="12sp"
+                android:textColor="#666"
+                android:gravity="center_vertical" />
+
+        </LinearLayout>
+
+        <!-- ===== 尺寸设置 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -223,7 +227,7 @@
 
         </LinearLayout>
 
-        <!-- 圆角半径 -->
+        <!-- ===== 圆角半径 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -260,7 +264,7 @@
 
         </LinearLayout>
 
-        <!-- 边框宽度 -->
+        <!-- ===== 边框宽度 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -281,79 +285,534 @@
             android:layout_marginBottom="20dp"
             android:imeOptions="actionDone" />
 
-        <!-- 填充颜色 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="填充颜色"
-            android:textSize="14sp"
-            android:textColor="#666"
-            android:layout_marginBottom="8dp" />
-
+        <!-- ===== 颜色设置（可展开） ===== -->
         <LinearLayout
+            android:id="@+id/colorSectionHeader"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
+            android:gravity="center_vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
 
-            <EditText
-                android:id="@+id/fillColorInput"
+            <TextView
                 android:layout_width="0dp"
-                android:layout_height="48dp"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="#999999"
-                android:textSize="14sp"
-                android:padding="8dp"
-                android:background="#FFF"
-                android:layout_marginEnd="8dp"
-                android:imeOptions="actionDone"
-                android:inputType="text" />
+                android:text="颜色设置"
+                android:textSize="16sp"
+                android:textColor="#333"
+                android:textStyle="bold" />
 
-            <View
-                android:id="@+id/fillColorPreview"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="#999999" />
+            <TextView
+                android:id="@+id/colorSectionArrow"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:text="▼"
+                android:textSize="14sp"
+                android:textColor="#666" />
 
         </LinearLayout>
 
-        <!-- 边框颜色 -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="边框颜色"
-            android:textSize="14sp"
-            android:textColor="#666"
-            android:layout_marginBottom="8dp" />
+        <View
+            android:id="@+id/colorSectionDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDD"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone" />
 
         <LinearLayout
+            android:id="@+id/colorSectionContent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
+            android:orientation="vertical"
+            android:visibility="gone">
 
-            <EditText
-                android:id="@+id/borderColorInput"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:text="#666666"
-                android:textSize="14sp"
-                android:padding="8dp"
-                android:background="#FFF"
-                android:layout_marginEnd="8dp"
-                android:imeOptions="actionDone"
-                android:inputType="text" />
+            <!-- ===== 普通格子颜色（两套） ===== -->
+            <LinearLayout
+                android:id="@+id/normalColorContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-            <View
-                android:id="@+id/borderColorPreview"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="#666666" />
+                <!-- 放开时（Up） -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="放开时"
+                    android:textSize="14sp"
+                    android:textColor="#666"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- 填充颜色 Up -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="填充颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/fillColorUpInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#999999"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/fillColorUpPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#999999" />
+
+                </LinearLayout>
+
+                <!-- 边框颜色 Up -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="边框颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/borderColorUpInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#666666"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/borderColorUpPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#666666" />
+
+                </LinearLayout>
+
+                <!-- 文字颜色 Up -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="文字颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/textColorUpInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/textColorUpPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+                <!-- 计数颜色 Up -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="计数颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <EditText
+                        android:id="@+id/countColorUpInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/countColorUpPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+                <!-- 按下时（Down） -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="按下时"
+                    android:textSize="14sp"
+                    android:textColor="#666"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- 填充颜色 Down -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="填充颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/fillColorDownInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/fillColorDownPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+                <!-- 边框颜色 Down -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="边框颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/borderColorDownInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#666666"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/borderColorDownPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#666666" />
+
+                </LinearLayout>
+
+                <!-- 文字颜色 Down -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="文字颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/textColorDownInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/textColorDownPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+                <!-- 计数颜色 Down -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="计数颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <EditText
+                        android:id="@+id/countColorDownInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/countColorDownPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- ===== 特殊格子简化颜色（一套） ===== -->
+            <LinearLayout
+                android:id="@+id/simpleColorContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="颜色"
+                    android:textSize="14sp"
+                    android:textColor="#666"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- 填充颜色 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="填充颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/simpleFillColorInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#999999"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/simpleFillColorPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#999999" />
+
+                </LinearLayout>
+
+                <!-- 边框颜色 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="边框颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/simpleBorderColorInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#666666"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/simpleBorderColorPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#666666" />
+
+                </LinearLayout>
+
+                <!-- 文字颜色 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="文字颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <EditText
+                        android:id="@+id/simpleTextColorInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/simpleTextColorPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+                <!-- 计数颜色 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="计数颜色"
+                    android:textSize="12sp"
+                    android:textColor="#999"
+                    android:layout_marginBottom="2dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <EditText
+                        android:id="@+id/simpleCountColorInput"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="#FFFFFF"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="#FFF"
+                        android:layout_marginEnd="8dp"
+                        android:imeOptions="actionDone"
+                        android:inputType="text" />
+
+                    <View
+                        android:id="@+id/simpleCountColorPreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="#FFFFFF" />
+
+                </LinearLayout>
+
+            </LinearLayout>
 
         </LinearLayout>
 
-        <!-- 键雨效果 -->
+        <!-- ===== 键雨效果 ===== -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -492,6 +951,56 @@
                 android:padding="8dp"
                 android:background="#FFF"
                 android:imeOptions="actionDone" />
+
+        </LinearLayout>
+
+        <!-- ===== KPS/TOTAL 特殊控制（仅特殊格子显示） ===== -->
+        <LinearLayout
+            android:id="@+id/kpsTotalContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="KPS/TOTAL 显示"
+                android:textSize="16sp"
+                android:textColor="#333"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp" />
+
+            <Switch
+                android:id="@+id/kpsTotalNoWrapSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="不换行（单行）"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/kpsTotalLabelOffsetHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="标签 X 偏移"
+                android:textSize="14sp"
+                android:textColor="#666"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone" />
+
+            <EditText
+                android:id="@+id/kpsTotalLabelOffsetInput"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:inputType="numberSigned"
+                android:text="0"
+                android:textSize="14sp"
+                android:padding="8dp"
+                android:background="#FFF"
+                android:imeOptions="actionDone"
+                android:visibility="gone" />
 
         </LinearLayout>
 

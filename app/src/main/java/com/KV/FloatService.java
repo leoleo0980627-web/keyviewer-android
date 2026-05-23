@@ -3,11 +3,9 @@ package com.KV;
 import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
-import android.util.Log;
 
 public class FloatService extends Service {
 
-    private static final String TAG = "FloatService";
     private FloatView floatView;
     private static FloatService instance;
     private static KeyView sharedKeyView;
@@ -24,10 +22,6 @@ public class FloatService extends Service {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        
-        // 切换到 KeyViewer IME
-        IMEHelper.switchToKeyViewerIME(this);
-        
         floatView = new FloatView(this, sharedKeyView);
     }
 
@@ -45,11 +39,10 @@ public class FloatService extends Service {
 
     @Override
     public void onDestroy() {
+        if (floatView != null && floatView.getKeyView() != null) {
+            floatView.getKeyView().getKeyManager().flushPendingCountSaves();
+        }
         super.onDestroy();
-        
-        // 切回原来的输入法
-        IMEHelper.switchBackToOriginalIME();
-        
         if (floatView != null) {
             floatView.detachFromWindow();
         }

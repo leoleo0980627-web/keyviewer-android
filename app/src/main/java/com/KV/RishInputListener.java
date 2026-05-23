@@ -8,10 +8,10 @@ import android.util.Log;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import rikka.shizuku.Shizuku;
 
@@ -22,17 +22,18 @@ public class RishInputListener {
     private Context context;
     private boolean isListening = false;
     private Handler mainHandler = new Handler(Looper.getMainLooper());
-    private List<Process> currentProcesses = new CopyOnWriteArrayList<>();
-
+    private List<Process> currentProcesses = new ArrayList<>();
+    
     private Map<Integer, Boolean> keyPressedState = new HashMap<>();
     private volatile boolean paused = false;
-
+    private static final boolean ENABLE_RAW_KEY_DIAGNOSTICS = true;
+    
     public RishInputListener(Context context, KeyView keyView) {
         this.context = context;
         this.keyView = keyView;
         Log.d(TAG, "RishInputListener created");
     }
-
+    
     public boolean isShizukuAvailable() {
         try {
             boolean available = Shizuku.pingBinder() && Shizuku.checkSelfPermission() == 0;
@@ -43,156 +44,299 @@ public class RishInputListener {
             return false;
         }
     }
-
+    
     public void startListening() {
         Log.d(TAG, "startListening called, isListening=" + isListening);
         if (isListening) return;
         if (!isShizukuAvailable()) return;
-        if (!BinaryKeyInjector.getInstance().isRunning()) {
-            Log.d(TAG, "BinaryKeyInjector not running");
-            return;
-        }
-
+        
         new Thread(() -> {
             isListening = true;
             Log.d(TAG, "Listener thread started");
-
-            Process catProcess = startMergedMonitoring();
-            if (catProcess == null) {
-                Log.e(TAG, "Failed to start merged monitoring");
-                isListening = false;
-                return;
-            }
-
-            synchronized (currentProcesses) {
-                currentProcesses.add(catProcess);
-            }
-
-            Log.d(TAG, "Reading from merged stream...");
-
-            try {
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(catProcess.getInputStream()));
-                String line;
-
-                while (isListening && (line = reader.readLine()) != null) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 3) {
-                        try {
-                            int type = Integer.parseInt(parts[0], 16);
-                            int code = Integer.parseInt(parts[1], 16);
-                            int value = Integer.parseInt(parts[2], 16);
-
-                            if (type == 1 && (value == 1 || value == 0)) {
-                                boolean isDown = (value == 1);
-
-                                String originalKey = keyCodeToName(code);
-                                if (originalKey == null) continue;
-
-                                if (paused) continue;
-
-                                if (!keyView.isKeyBound(originalKey)) continue;
-
-                                Boolean currentlyPressed = keyPressedState.get(code);
-                                if (currentlyPressed == null) currentlyPressed = false;
-
-                                if (currentlyPressed == isDown) continue;
-
-                                keyPressedState.put(code, isDown);
-
-                                final boolean finalIsDown = isDown;
-
-                                mainHandler.post(() -> {
-                                    if (keyView != null) {
-                                        keyView.notifyKeyPressed(originalKey);
-                                        keyView.setKeyPressed(originalKey, finalIsDown);
-
-                                        if (finalIsDown) {
-                                            keyView.getKeyManager().recordKeyPress(originalKey);
-                                            keyView.invalidate();
-
-                                            String mappedKey = keyView.getMappedKey(originalKey);
-                                            if (mappedKey != null && !mappedKey.equals(originalKey)) {
-                                                BinaryKeyInjector binInjector = BinaryKeyInjector.getInstance();
-                                                int linuxCode = BinaryKeyInjector.keyNameToLinuxCode(mappedKey);
-                                                if (linuxCode != -1 && binInjector.isRunning()) {
-                                                    binInjector.injectKey(linuxCode, true);
-                                                    binInjector.injectKey(linuxCode, false);
-                                                }
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        } catch (NumberFormatException e) {
-                        }
-                    }
+            
+            GlobalSettings settings = GlobalSettings.getInstance(context);
+            String calibratedDevice = settings.keyboardDevicePath;
+            
+            if (calibratedDevice != null && !calibratedDevice.isEmpty()) {
+                Log.d(TAG, "Using calibrated device: " + calibratedDevice);
+                startMonitoringAsync(calibratedDevice);
+            } else {
+                List<String> devices = findAllKeyboardDevices();
+                Log.d(TAG, "Found " + devices.size() + " keyboard devices");
+                for (String device : devices) {
+                    startMonitoringAsync(device);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error reading from merged stream", e);
             }
         }).start();
     }
-
-    private Process startMergedMonitoring() {
-        try {
-            Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
-            Method method = shizukuClass.getDeclaredMethod(
-                    "newProcess", String[].class, String[].class, String.class);
-            method.setAccessible(true);
-
-            String[] cmd = {"sh", "-c",
-                    "for f in /dev/input/event*; do " +
-                            "  getevent $f 2>/dev/null & " +
-                            "done | cat"
-            };
-
-            Process p = (Process) method.invoke(null, cmd, null, null);
-            Log.d(TAG, "Merged monitoring started (anonymous pipe)");
-            return p;
-        } catch (Exception e) {
-            Log.e(TAG, "startMergedMonitoring failed", e);
-            return null;
-        }
-    }
-
+    
     public void pause() {
         paused = true;
         Log.d(TAG, "Input listener paused");
     }
-
+    
     public void resume() {
         paused = false;
         Log.d(TAG, "Input listener resumed");
     }
-
-    public void stopListening() {
-        isListening = false;
-        keyPressedState.clear();
-
+    
+    private List<String> findAllKeyboardDevices() {
+        List<String> devices = new ArrayList<>();
+        
         try {
             Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
             Method method = shizukuClass.getDeclaredMethod(
-                    "newProcess", String[].class, String[].class, String.class);
+                "newProcess", String[].class, String[].class, String.class);
             method.setAccessible(true);
-
-            String[] killCmd = {"sh", "-c", "killall getevent 2>/dev/null"};
-            Process killP = (Process) method.invoke(null, killCmd, null, null);
-            killP.waitFor();
-            killP.destroy();
-            Log.d(TAG, "All getevent processes killed");
-        } catch (Exception e) {
-            Log.e(TAG, "cleanup failed", e);
-        }
-
-        synchronized (currentProcesses) {
-            for (Process p : currentProcesses) {
-                if (p != null) p.destroy();
+            
+            for (int i = 0; i < 32; i++) {
+                String devicePath = "/dev/input/event" + i;
+                
+                if (!deviceExists(devicePath, method)) {
+                    continue;
+                }
+                
+                String deviceInfo = getDeviceInfo(devicePath, method);
+                if (deviceInfo == null || deviceInfo.isEmpty()) {
+                    continue;
+                }
+                
+                if (isKeyboardDevice(deviceInfo)) {
+                    devices.add(devicePath);
+                    Log.d(TAG, "✅ Keyboard: " + devicePath + " | " + extractDeviceName(deviceInfo));
+                }
             }
-            currentProcesses.clear();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "findAllKeyboardDevices error", e);
+        }
+        
+        return devices;
+    }
+    
+    private boolean deviceExists(String devicePath, Method method) {
+        try {
+            String[] cmd = {"sh", "-c", "test -e " + devicePath + " && echo ok"};
+            Process p = (Process) method.invoke(null, cmd, null, null);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String result = reader.readLine();
+            p.destroy();
+            return "ok".equals(result);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private String getDeviceInfo(String devicePath, Method method) {
+        try {
+            String[] cmd = {"sh", "-c", "getevent -p " + devicePath + " 2>/dev/null"};
+            Process p = (Process) method.invoke(null, cmd, null, null);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            p.destroy();
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    private boolean isKeyboardDevice(String deviceInfo) {
+        boolean hasKey = deviceInfo.contains("KEY (0001):");
+        boolean hasRel = deviceInfo.contains("REL (0002):") || deviceInfo.contains("EV_REL");
+        
+        if (!hasKey) {
+            return false;
+        }
+        
+        int keyCount = countKeyCodes(deviceInfo);
+        String name = extractDeviceName(deviceInfo).toLowerCase();
+        
+        Log.d(TAG, "Device: " + name + " | hasKey=" + hasKey + " | hasRel=" + hasRel + " | keys=" + keyCount);
+        
+        String[] excludePatterns = {"touch", "proximity", "hall", "grip", "accdet", "meta", "sensor", "headset", "button jack", "pon", "nav", "folio"};
+        for (String pattern : excludePatterns) {
+            if (name.contains(pattern)) {
+                Log.d(TAG, "Excluded by name: " + name);
+                return false;
+            }
+        }
+        
+        boolean hasEnoughKeys = (keyCount > 50);
+        
+        if (hasRel && keyCount < 10) {
+            Log.d(TAG, "Mouse with few keys: " + name);
+            return false;
+        }
+        
+        if (name.contains("2.4g") || name.contains("mouse")) {
+            return hasEnoughKeys;
+        }
+        
+        return hasEnoughKeys;
+    }
+    
+    private int countKeyCodes(String deviceInfo) {
+        int count = 0;
+        boolean inKeySection = false;
+        
+        for (String line : deviceInfo.split("\n")) {
+            if (line.contains("KEY") && line.contains("(0001)")) {
+                inKeySection = true;
+                count += countHexNumbers(line);
+            } else if (inKeySection) {
+                if (line.trim().isEmpty() || (line.contains("(") && !line.contains("KEY"))) {
+                    inKeySection = false;
+                } else {
+                    count += countHexNumbers(line);
+                }
+            }
+        }
+        return count;
+    }
+    
+    private int countHexNumbers(String line) {
+        int count = 0;
+        String[] parts = line.split("\\s+");
+        for (String part : parts) {
+            if (part.matches("[0-9a-fA-F]{4}")) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    private String extractDeviceName(String deviceInfo) {
+        for (String line : deviceInfo.split("\n")) {
+            if (line.contains("name:")) {
+                int start = line.indexOf('"');
+                int end = line.lastIndexOf('"');
+                if (start != -1 && end != -1 && end > start) {
+                    return line.substring(start + 1, end);
+                }
+            }
+        }
+        return "unknown";
+    }
+    
+    private void startMonitoring(String devicePath) {
+        try {
+            Log.d(TAG, "startMonitoring: " + devicePath);
+            
+            Class<?> shizukuClass = Class.forName("rikka.shizuku.Shizuku");
+            Method method = shizukuClass.getDeclaredMethod(
+                "newProcess", String[].class, String[].class, String.class);
+            method.setAccessible(true);
+            
+            String[] cmd = {"sh", "-c", "getevent " + devicePath};
+            Process p = (Process) method.invoke(null, cmd, null, null);
+            
+            synchronized (currentProcesses) {
+                currentProcesses.add(p);
+            }
+            
+            Log.d(TAG, "Process started for " + devicePath);
+            
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(p.getInputStream()));
+            String line;
+            
+            while (isListening && (line = reader.readLine()) != null) {
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length >= 3) {
+                    try {
+                        int type = Integer.parseInt(parts[0], 16);
+                        int code = Integer.parseInt(parts[1], 16);
+                        int value = Integer.parseInt(parts[2], 16);
+                        
+                        if (type == 1 && (value == 1 || value == 0)) {
+                            boolean isDown = (value == 1);
+                            
+                            String originalKey = keyCodeToName(code);
+                            if (ENABLE_RAW_KEY_DIAGNOSTICS) {
+                                Log.d(TAG, "RAW " + devicePath
+                                        + " type=" + type
+                                        + " code=" + code
+                                        + " value=" + value
+                                        + " key=" + (originalKey != null ? originalKey : "unknown"));
+                            }
+                            if (originalKey == null) continue;
+                            
+                            if (paused) continue;
+                            
+                            // 检查是否绑定了这个按键
+                            boolean isBound = keyView.isKeyBound(originalKey);
+                            if (ENABLE_RAW_KEY_DIAGNOSTICS) {
+                                Log.d(TAG, "BOUND_CHECK key=" + originalKey + " bound=" + isBound);
+                            }
+                            if (!isBound) continue;
+                            
+                            Boolean currentlyPressed = keyPressedState.get(code);
+                            if (currentlyPressed == null) currentlyPressed = false;
+                            
+                            if (currentlyPressed == isDown) {
+                                if (ENABLE_RAW_KEY_DIAGNOSTICS) {
+                                    Log.d(TAG, "DEDUP key=" + originalKey + " state=" + (isDown ? "DOWN" : "UP"));
+                                }
+                                continue;
+                            }
+                            
+                            keyPressedState.put(code, isDown);
+                            
+                            // 获取映射后的按键名
+                            String mappedKey = keyView.getMappedKey(originalKey);
+                            String finalKeyName = mappedKey != null ? mappedKey : originalKey;
+                            if (ENABLE_RAW_KEY_DIAGNOSTICS) {
+                                Log.d(TAG, "ACTIVE_KEYS count=" + getPressedKeyCount()
+                                        + " key=" + originalKey
+                                        + " mapped=" + finalKeyName
+                                        + " state=" + (isDown ? "DOWN" : "UP")
+                                        + " device=" + devicePath);
+                            }
+                            
+                            Log.d(TAG, "Key " + originalKey + " -> mapped to " + finalKeyName + " " + (isDown ? "DOWN" : "UP") + " from " + devicePath);
+                            
+                            final String finalKey = finalKeyName;
+                            final boolean finalIsDown = isDown;
+                            
+                            mainHandler.post(() -> {
+                                if (keyView != null) {
+                                    keyView.notifyKeyPressed(finalKey);
+                                    keyView.setKeyPressed(finalKey, finalIsDown);
+                                    
+                                    if (finalIsDown) {
+                                        keyView.getKeyManager().recordKeyPress(finalKey);
+                                        keyView.invalidate();
+                                    }
+                                }
+                            });
+                        }
+                    } catch (NumberFormatException e) {}
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "startMonitoring error for " + devicePath, e);
         }
     }
 
+    private int getPressedKeyCount() {
+        int count = 0;
+        for (Boolean pressed : keyPressedState.values()) {
+            if (Boolean.TRUE.equals(pressed)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void startMonitoringAsync(String devicePath) {
+        new Thread(() -> startMonitoring(devicePath), "KV-Monitor-" + devicePath.replace('/', '_')).start();
+    }
+    
     private String keyCodeToName(int code) {
         switch (code) {
             case 57: return "space";
@@ -249,6 +393,17 @@ public class RishInputListener {
             case 8: return "7"; case 9: return "8"; case 10: return "9";
             case 11: return "0";
             default: return null;
+        }
+    }
+    
+    public void stopListening() {
+        isListening = false;
+        keyPressedState.clear();
+        synchronized (currentProcesses) {
+            for (Process p : currentProcesses) {
+                if (p != null) p.destroy();
+            }
+            currentProcesses.clear();
         }
     }
 }

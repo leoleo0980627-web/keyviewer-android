@@ -1,5 +1,6 @@
 package com.KV;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -16,6 +17,7 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,13 +61,14 @@ public class KeyView extends View {
     private float lastTouchX;
     private float lastTouchY;
     private float minKeySize;
+    private boolean movedDuringTouch = false;
 
     private Paint gridPaint;
     private Paint keyFillPaint;
     private Paint keyBorderPaint;
-    private Paint keyPressedPaint;
     private Paint rainPaint;
     private TextPaint textPaint;
+    private TextPaint countPaint;
 
     private Drawable selectionBorderDrawable;
     private Drawable handleDrawable;
@@ -96,9 +99,8 @@ public class KeyView extends View {
     private float rainMaxHeightPx;
     private float rainCutLineY;
 
-    // 复制粘贴
-    private List<KeyData> pastingKeys = new ArrayList<>();
-    private boolean isPastingMode = false;
+    private GlobalSettings globalSettings;
+    private int canvasBackgroundColor;
 
     private static final Map<String, String> KEY_DISPLAY_MAP = new HashMap<>();
     static {
@@ -157,6 +159,9 @@ public class KeyView extends View {
     }
 
     private void init(Context context) {
+        globalSettings = GlobalSettings.getInstance(context);
+        super.setBackgroundColor(Color.TRANSPARENT);
+        
         float density = context.getResources().getDisplayMetrics().density;
         gridSizePx = (int) (15 * density);
         defaultKeySizePx = (int) (50 * density);
@@ -165,7 +170,7 @@ public class KeyView extends View {
         handleSizePx = (int) (12 * density);
         minKeySize = handleSizePx + borderWidthPx * 2;
 
-        rainMaxHeightPx = 200 * density;
+        rainMaxHeightPx = globalSettings.globalRainHeightDp * density;
         rainCutLineY = -rainMaxHeightPx - 10 * density;
 
         gridPaint = new Paint();
@@ -176,11 +181,6 @@ public class KeyView extends View {
         keyFillPaint.setStyle(Paint.Style.FILL);
         keyFillPaint.setAntiAlias(true);
 
-        keyPressedPaint = new Paint();
-        keyPressedPaint.setStyle(Paint.Style.FILL);
-        keyPressedPaint.setColor(context.getResources().getColor(R.color.key_pressed));
-        keyPressedPaint.setAntiAlias(true);
-
         keyBorderPaint = new Paint();
         keyBorderPaint.setStyle(Paint.Style.STROKE);
         keyBorderPaint.setAntiAlias(true);
@@ -190,14 +190,19 @@ public class KeyView extends View {
         rainPaint.setAntiAlias(true);
 
         textPaint = new TextPaint();
-        textPaint.setColor(Color.WHITE);
         textPaint.setTextAlign(Paint.Align.CENTER);
         textPaint.setAntiAlias(true);
         textPaint.setFakeBoldText(true);
         
+        countPaint = new TextPaint();
+        countPaint.setTextAlign(Paint.Align.CENTER);
+        countPaint.setAntiAlias(true);
+        countPaint.setFakeBoldText(true);
+        
         try {
             Typeface typeface = Typeface.createFromAsset(context.getAssets(), "fonts/adofai.ttf");
             textPaint.setTypeface(typeface);
+            countPaint.setTypeface(typeface);
         } catch (Exception e) {
         }
 
@@ -210,6 +215,36 @@ public class KeyView extends View {
 
         keyManager.setContext(context);
         keyManager.loadFromPreferences();
+        
+        applyDarkModeToBackground();
+    }
+    
+    private void applyDarkModeToBackground() {
+        canvasBackgroundColor = getThemeBackgroundColor();
+    }
+    
+    public void onDarkModeChanged() {
+        animateCanvasBackgroundTo(getThemeBackgroundColor());
+        invalidate();
+    }
+
+    private int getThemeBackgroundColor() {
+        return globalSettings.darkModeEnabled ? 0xFF000000 : getResources().getColor(R.color.background_light);
+    }
+
+    private void animateCanvasBackgroundTo(int targetColor) {
+        if (canvasBackgroundColor == targetColor) {
+            return;
+        }
+
+        ValueAnimator animator = ValueAnimator.ofArgb(canvasBackgroundColor, targetColor);
+        animator.setDuration(300);
+        animator.setInterpolator(new AccelerateDecelerateInterpolator());
+        animator.addUpdateListener(animation -> {
+            canvasBackgroundColor = (int) animation.getAnimatedValue();
+            invalidate();
+        });
+        animator.start();
     }
 
     public void setBatchEditMode(boolean enabled) {
@@ -228,10 +263,6 @@ public class KeyView extends View {
 
     public boolean isBatchEditMode() {
         return batchEditMode;
-    }
-
-    public boolean isPastingMode() {
-        return isPastingMode;
     }
 
     public List<KeyData> getSelectedKeys() {
@@ -277,86 +308,38 @@ public class KeyView extends View {
     }
 
     public void selectKeyById(String id) {
+        if (id == null) {
+            clearSelection();
+            return;
+        }
+        
         for (KeyData key : keyManager.getKeys()) {
             if (key.id.equals(id)) {
-                selectedKey = key;
-                keyManager.setSelectedKey(id);
-                updateRectsForSelected();
-                
-                if (selectionListener != null) {
-                    selectionListener.onSelectionChanged(true);
+                if (!batchEditMode) {
+                    selectedKey = key;
+                    keyManager.setSelectedKey(key.id);
+                    updateRectsForSelected();
+                    if (selectionListener != null) {
+                        selectionListener.onSelectionChanged(true);
+                    }
+                    if (keyUpdatedListener != null) {
+                        keyUpdatedListener.onKeyUpdated(key);
+                    }
+                    invalidate();
                 }
-                if (keyUpdatedListener != null) {
-                    keyUpdatedListener.onKeyUpdated(key);
-                }
-                
-                invalidate();
-                return;
+                break;
             }
         }
     }
 
-    public void startPasting() {
-        List<KeyData> clipboard = keyManager.getClipboard();
-        if (clipboard.isEmpty()) return;
-        
-        isPastingMode = true;
-        pastingKeys.clear();
-        
-        float avgX = 0, avgY = 0;
-        for (KeyData key : clipboard) {
-            avgX += key.centerX;
-            avgY += key.centerY;
+    public KeyData getKeyById(String id) {
+        if (id == null) return null;
+        for (KeyData key : keyManager.getKeys()) {
+            if (key.id.equals(id)) {
+                return key;
+            }
         }
-        avgX /= clipboard.size();
-        avgY /= clipboard.size();
-        
-        float screenCenterX = -translateX / scaleFactor + getWidth() / 2f / scaleFactor;
-        float screenCenterY = -translateY / scaleFactor + getHeight() / 2f / scaleFactor;
-        float offsetX = screenCenterX - avgX;
-        float offsetY = screenCenterY - avgY;
-        
-        for (KeyData key : clipboard) {
-            KeyData pasted = key.clone();
-            pasted.centerX += offsetX;
-            pasted.centerY += offsetY;
-            pasted.centerX = Math.round(pasted.centerX / gridSizePx) * gridSizePx;
-            pasted.centerY = Math.round(pasted.centerY / gridSizePx) * gridSizePx;
-            pastingKeys.add(pasted);
-        }
-        
-        updatePastingRects();
-        invalidate();
-    }
-
-    public void confirmPaste() {
-        for (KeyData key : pastingKeys) {
-            key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
-            key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
-            keyManager.getKeys().add(key);
-        }
-        keyManager.saveToPreferences();
-        cancelPaste();
-        invalidate();
-    }
-
-    public void cancelPaste() {
-        isPastingMode = false;
-        pastingKeys.clear();
-        invalidate();
-    }
-
-    private void updatePastingRects() {
-        for (KeyData key : pastingKeys) {
-            float halfW = key.width / 2f;
-            float halfH = key.height / 2f;
-            key.rect.set(
-                key.centerX - halfW,
-                key.centerY - halfH,
-                key.centerX + halfW,
-                key.centerY + halfH
-            );
-        }
+        return null;
     }
 
     public void addNewKey() {
@@ -455,6 +438,7 @@ public class KeyView extends View {
         for (KeyData key : keyManager.getKeys()) {
             if (key.boundKey != null && key.boundKey.equals(originalKey)) {
                 if (key.mappingEnabled && key.mappedKey != null && !key.mappedKey.isEmpty()) {
+                    Log.d(TAG, "getMappedKey: " + originalKey + " -> " + key.mappedKey);
                     return key.mappedKey;
                 }
                 break;
@@ -488,7 +472,8 @@ public class KeyView extends View {
                                 particleX, particleY, particleWidth, 
                                 key.rainColor, 
                                 key.rainSpeedDp * density);
-                        p.height = 10 * density;
+                        float reserveHeight = globalSettings.globalRainReserveHeightDp * density;
+                        p.height = reserveHeight;
                         key.rainParticles.add(p);
                     }
                 } else if (!pressed && key.rainEnabled) {
@@ -504,7 +489,8 @@ public class KeyView extends View {
                                 particleX, particleY, particleWidth, 
                                 key.rainColor, 
                                 key.rainSpeedDp * density);
-                        p.height = 10 * density;
+                        float reserveHeight = globalSettings.globalRainReserveHeightDp * density;
+                        p.height = reserveHeight;
                         p.isReleased = true;
                         key.rainParticles.add(p);
                     }
@@ -524,8 +510,7 @@ public class KeyView extends View {
         lastUpdateTime = now;
         
         float density = getResources().getDisplayMetrics().density;
-        GlobalSettings settings = GlobalSettings.getInstance(getContext());
-        rainMaxHeightPx = settings.globalRainHeightDp * density;
+        rainMaxHeightPx = globalSettings.globalRainHeightDp * density;
         rainCutLineY = -rainMaxHeightPx - 10 * density;
         
         List<KeyData> keys = keyManager.getKeys();
@@ -645,6 +630,53 @@ public class KeyView extends View {
         invalidate();
     }
 
+    private void snapBatchSelectionToGrid() {
+        if (!batchEditMode || selectedKeys.isEmpty()) return;
+
+        for (KeyData key : selectedKeys) {
+            key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
+            key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
+
+            float halfW = key.width / 2f;
+            float halfH = key.height / 2f;
+            key.centerX = Math.max(halfW, key.centerX);
+            key.centerY = Math.max(halfH, key.centerY);
+        }
+
+        keyManager.saveToPreferences();
+        invalidate();
+    }
+
+    private void moveBatchSelection(float worldDx, float worldDy) {
+        if (selectedKeys.isEmpty()) return;
+
+        float minAllowedDx = Float.NEGATIVE_INFINITY;
+        float maxAllowedDx = Float.POSITIVE_INFINITY;
+        float minAllowedDy = Float.NEGATIVE_INFINITY;
+        float maxAllowedDy = Float.POSITIVE_INFINITY;
+
+        float worldWidth = getWidth() / scaleFactor;
+        float worldHeight = getHeight() / scaleFactor;
+
+        for (KeyData key : selectedKeys) {
+            float halfW = key.width / 2f;
+            float halfH = key.height / 2f;
+
+            minAllowedDx = Math.max(minAllowedDx, halfW - key.centerX);
+            maxAllowedDx = Math.min(maxAllowedDx, worldWidth - halfW - key.centerX);
+            minAllowedDy = Math.max(minAllowedDy, halfH - key.centerY);
+            maxAllowedDy = Math.min(maxAllowedDy, worldHeight - halfH - key.centerY);
+        }
+
+        float clampedDx = Math.max(minAllowedDx, Math.min(worldDx, maxAllowedDx));
+        float clampedDy = Math.max(minAllowedDy, Math.min(worldDy, maxAllowedDy));
+
+        for (KeyData key : selectedKeys) {
+            key.centerX += clampedDx;
+            key.centerY += clampedDy;
+        }
+    }
+
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
@@ -653,13 +685,15 @@ public class KeyView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+        render(canvas, drawBackground);
+    }
 
+    public void render(Canvas canvas, boolean includeBackground) {
         canvas.save();
         canvas.concat(canvasMatrix);
 
-        if (drawBackground) {
-            canvas.drawColor(getResources().getColor(R.color.background_light));
+        if (includeBackground) {
+            canvas.drawColor(canvasBackgroundColor);
 
             int width = getWidth();
             int height = getHeight();
@@ -681,11 +715,9 @@ public class KeyView extends View {
             }
         }
 
-        updateAllKeyRects();
-        
-        List<KeyData> sortedKeys = keyManager.getSortedKeys();
-        
-        for (KeyData key : sortedKeys) {
+        // 使用 zIndex 升序获取按键（下层先绘制），确保键雨粒子按正确层级绘制
+        List<KeyData> sortedKeysAsc = keyManager.getKeysSortedByZIndexAsc();
+        for (KeyData key : sortedKeysAsc) {
             if (key.rainEnabled) {
                 for (KeyData.RainParticle p : key.rainParticles) {
                     rainPaint.setColor(p.color);
@@ -698,6 +730,11 @@ public class KeyView extends View {
             }
         }
 
+        updateAllKeyRects();
+        
+        // 使用 keyManager 提供的统一排序方法（zIndex 降序，上层后绘制）
+        List<KeyData> sortedKeys = keyManager.getKeysSortedByZIndex();
+        
         for (KeyData key : sortedKeys) {
             drawKey(canvas, key);
         }
@@ -738,24 +775,6 @@ public class KeyView extends View {
             handleDrawable.draw(canvas);
         }
 
-        if (isPastingMode) {
-            float density = getResources().getDisplayMetrics().density;
-            for (KeyData key : pastingKeys) {
-                float cornerRadius = key.cornerRadiusDp * density;
-                
-                keyFillPaint.setColor(key.fillColor);
-                keyFillPaint.setAlpha(102);
-                canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyFillPaint);
-                keyFillPaint.setAlpha(255);
-                
-                keyBorderPaint.setColor(key.borderColor);
-                keyBorderPaint.setAlpha(102);
-                keyBorderPaint.setStrokeWidth(key.borderWidthDp * density);
-                canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyBorderPaint);
-                keyBorderPaint.setAlpha(255);
-            }
-        }
-
         canvas.restore();
     }
 
@@ -763,60 +782,76 @@ public class KeyView extends View {
         float density = getResources().getDisplayMetrics().density;
         float cornerRadius = key.cornerRadiusDp * density;
         
-        Paint fillPaint = key.isPressed ? keyPressedPaint : keyFillPaint;
-        if (!key.isPressed) {
-            fillPaint.setColor(key.fillColor);
-        }
-        canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, fillPaint);
+        keyFillPaint.setColor(key.isPressed ? key.fillColorDown : key.fillColorUp);
+        canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyFillPaint);
         
-        keyBorderPaint.setColor(key.borderColor);
+        keyBorderPaint.setColor(key.isPressed ? key.borderColorDown : key.borderColorUp);
         keyBorderPaint.setStrokeWidth(key.borderWidthDp * density);
         canvas.drawRoundRect(key.rect, cornerRadius, cornerRadius, keyBorderPaint);
         
+        textPaint.setColor(key.isPressed ? key.textColorDown : key.textColorUp);
+        countPaint.setColor(key.isPressed ? key.countColorDown : key.countColorUp);
+        
         String displayText = getDisplayTextForKey(key);
         if (displayText != null && !displayText.isEmpty()) {
-            String[] lines = displayText.split("\n");
-            
-            float nameTextSize = key.textSizeSp * density;
-            float countTextSize = nameTextSize;
-            
-            if (lines.length >= 2) {
-                String countStr = lines[lines.length - 1];
-                int digitCount = countStr.length();
-                if (digitCount >= 9) countTextSize *= 0.5f;
-                else if (digitCount >= 8) countTextSize *= 0.55f;
-                else if (digitCount >= 7) countTextSize *= 0.6f;
-                else if (digitCount >= 6) countTextSize *= 0.7f;
-                else if (digitCount >= 5) countTextSize *= 0.8f;
-                else if (digitCount >= 4) countTextSize *= 0.9f;
+            drawKeyText(canvas, key, displayText, density);
+        }
+    }
+
+    private void drawKeyText(Canvas canvas, KeyData key, String displayText, float density) {
+        String[] lines = displayText.split("\n");
+        
+        float actualTextSize = key.textSizeSp * density;
+        
+        if (lines.length >= 2) {
+            String countStr = lines[lines.length - 1];
+            int digitCount = countStr.length();
+            if (digitCount >= 9) actualTextSize *= 0.5f;
+            else if (digitCount >= 8) actualTextSize *= 0.55f;
+            else if (digitCount >= 7) actualTextSize *= 0.6f;
+            else if (digitCount >= 6) actualTextSize *= 0.7f;
+            else if (digitCount >= 5) actualTextSize *= 0.8f;
+            else if (digitCount >= 4) actualTextSize *= 0.9f;
+        }
+        
+        textPaint.setTextSize(actualTextSize);
+        countPaint.setTextSize(actualTextSize);
+        
+        Paint.FontMetrics textMetrics = textPaint.getFontMetrics();
+        float lineHeight = textMetrics.descent - textMetrics.ascent;
+        float totalHeight = lineHeight * lines.length;
+        float centerY = key.rect.centerY();
+        
+        if (key.isSpecialKey()) {
+            if (key.kpsTotalNoWrap) {
+                float labelOffsetX = key.kpsTotalLabelOffsetX * density;
+                float centerX = key.rect.centerX();
+                
+                float labelY = centerY - (textMetrics.ascent + textMetrics.descent) / 2;
+                canvas.drawText(lines[0], centerX + labelOffsetX, labelY, textPaint);
+                
+                if (lines.length > 1) {
+                    canvas.drawText(lines[1], centerX, labelY, countPaint);
+                }
+            } else {
+                float firstLineBaseline = centerY - totalHeight / 2 - textMetrics.ascent;
+                for (int i = 0; i < lines.length; i++) {
+                    Paint paint = (i == 0) ? textPaint : countPaint;
+                    float y = firstLineBaseline + i * lineHeight;
+                    canvas.drawText(lines[i], key.rect.centerX(), y, paint);
+                }
             }
-            
-            textPaint.setColor(key.textColor != 0 ? key.textColor : Color.WHITE);
-            
+        } else {
             if (lines.length == 1) {
-                textPaint.setTextSize(nameTextSize);
-                Paint.FontMetrics metrics = textPaint.getFontMetrics();
-                float y = key.rect.centerY() - (metrics.ascent + metrics.descent) / 2;
+                float y = centerY - (textMetrics.ascent + textMetrics.descent) / 2;
                 canvas.drawText(lines[0], key.rect.centerX(), y, textPaint);
             } else {
-                textPaint.setTextSize(nameTextSize);
-                Paint.FontMetrics nameMetrics = textPaint.getFontMetrics();
-                float nameLineHeight = nameMetrics.descent - nameMetrics.ascent;
-                
-                textPaint.setTextSize(countTextSize);
-                Paint.FontMetrics countMetrics = textPaint.getFontMetrics();
-                float countLineHeight = countMetrics.descent - countMetrics.ascent;
-                
-                float totalHeight = nameLineHeight + countLineHeight;
-                float centerY = key.rect.centerY();
-                
-                textPaint.setTextSize(nameTextSize);
-                float firstLineBaseline = centerY - totalHeight / 2 - nameMetrics.ascent;
-                canvas.drawText(lines[0], key.rect.centerX(), firstLineBaseline, textPaint);
-                
-                textPaint.setTextSize(countTextSize);
-                float secondLineBaseline = firstLineBaseline + nameLineHeight;
-                canvas.drawText(lines[1], key.rect.centerX(), secondLineBaseline, textPaint);
+                float firstLineBaseline = centerY - totalHeight / 2 - textMetrics.ascent;
+                for (int i = 0; i < lines.length; i++) {
+                    Paint paint = (i == 0) ? textPaint : countPaint;
+                    float y = firstLineBaseline + i * lineHeight;
+                    canvas.drawText(lines[i], key.rect.centerX(), y, paint);
+                }
             }
         }
     }
@@ -873,14 +908,9 @@ public class KeyView extends View {
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                if (isPastingMode) {
-                    lastTouchX = screenX;
-                    lastTouchY = screenY;
-                    return true;
-                }
-                
                 dragMode = NONE;
                 isLongPressTriggered = false;
+                movedDuringTouch = false;
 
                 if (!batchEditMode && selectedKey != null) {
                     if (handleTopRect.contains(worldX, worldY)) {
@@ -899,17 +929,18 @@ public class KeyView extends View {
                     if (hitKey != null) {
                         if (batchEditMode) {
                             if (selectedKeys.contains(hitKey)) {
-                                selectedKeys.remove(hitKey);
+                                dragMode = DRAG_BODY;
                             } else {
                                 selectedKeys.add(hitKey);
+                                if (selectionListener != null) {
+                                    selectionListener.onSelectionChanged(!selectedKeys.isEmpty());
+                                }
+                                invalidate();
                             }
-                            if (selectionListener != null) {
-                                selectionListener.onSelectionChanged(!selectedKeys.isEmpty());
-                            }
-                            invalidate();
                         } else {
                             selectedKey = hitKey;
                             keyManager.setSelectedKey(hitKey.id);
+                            keyManager.bringToFront(hitKey.id);
                             updateRectsForSelected();
                             dragMode = DRAG_BODY;
                             
@@ -940,41 +971,25 @@ public class KeyView extends View {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
+                if (dragMode == NONE) return true;
+
                 float dx = screenX - lastTouchX;
                 float dy = screenY - lastTouchY;
-
-                if (isPastingMode) {
-                    float worldDx = dx / scaleFactor;
-                    float worldDy = dy / scaleFactor;
-                    for (KeyData key : pastingKeys) {
-                        key.centerX += worldDx;
-                        key.centerY += worldDy;
-                    }
-                    updatePastingRects();
-                    invalidate();
-                    lastTouchX = screenX;
-                    lastTouchY = screenY;
-                    return true;
-                }
-
-                if (dragMode == NONE) return true;
 
                 switch (dragMode) {
                     case PAN_CANVAS:
                         translateX += dx;
                         translateY += dy;
                         updateMatrix();
+                        movedDuringTouch = true;
                         break;
 
                     case DRAG_BODY:
-                        if (batchEditMode && !selectedKeys.isEmpty()) {
+                        if (batchEditMode) {
                             float worldDx = dx / scaleFactor;
                             float worldDy = dy / scaleFactor;
-                            for (KeyData key : selectedKeys) {
-                                key.centerX += worldDx;
-                                key.centerY += worldDy;
-                            }
-                            updateAllKeyRects();
+                            moveBatchSelection(worldDx, worldDy);
+                            movedDuringTouch = true;
                         } else if (selectedKey != null) {
                             float worldDx = dx / scaleFactor;
                             float worldDy = dy / scaleFactor;
@@ -987,6 +1002,7 @@ public class KeyView extends View {
                             selectedKey.centerY = Math.max(halfH, Math.min(selectedKey.centerY, getHeight() / scaleFactor - halfH));
                             
                             updateRectsForSelected();
+                            movedDuringTouch = true;
                         }
                         break;
 
@@ -999,6 +1015,7 @@ public class KeyView extends View {
                                 selectedKey.centerY += worldDyTop / 2f;
                             }
                             updateRectsForSelected();
+                            movedDuringTouch = true;
                         }
                         break;
 
@@ -1011,6 +1028,7 @@ public class KeyView extends View {
                                 selectedKey.centerY += worldDyBottom / 2f;
                             }
                             updateRectsForSelected();
+                            movedDuringTouch = true;
                         }
                         break;
 
@@ -1023,6 +1041,7 @@ public class KeyView extends View {
                                 selectedKey.centerX += worldDxLeft / 2f;
                             }
                             updateRectsForSelected();
+                            movedDuringTouch = true;
                         }
                         break;
 
@@ -1035,6 +1054,7 @@ public class KeyView extends View {
                                 selectedKey.centerX += worldDxRight / 2f;
                             }
                             updateRectsForSelected();
+                            movedDuringTouch = true;
                         }
                         break;
                 }
@@ -1045,24 +1065,20 @@ public class KeyView extends View {
                 return true;
 
             case MotionEvent.ACTION_UP:
-                if (isPastingMode) {
-                    for (KeyData key : pastingKeys) {
-                        key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
-                        key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
-                    }
-                    updatePastingRects();
-                    invalidate();
-                    return true;
-                }
-                
                 if (dragMode == DRAG_BODY || dragMode == DRAG_TOP || dragMode == DRAG_BOTTOM ||
                         dragMode == DRAG_LEFT || dragMode == DRAG_RIGHT) {
-                    if (batchEditMode && !selectedKeys.isEmpty()) {
-                        for (KeyData key : selectedKeys) {
-                            key.centerX = Math.round(key.centerX / gridSizePx) * gridSizePx;
-                            key.centerY = Math.round(key.centerY / gridSizePx) * gridSizePx;
+                    if (batchEditMode) {
+                        if (!movedDuringTouch) {
+                            KeyData hitKey = keyManager.findKeyAt(worldX, worldY);
+                            if (hitKey != null && selectedKeys.contains(hitKey)) {
+                                selectedKeys.remove(hitKey);
+                                if (selectionListener != null) {
+                                    selectionListener.onSelectionChanged(!selectedKeys.isEmpty());
+                                }
+                            }
+                        } else {
+                            snapBatchSelectionToGrid();
                         }
-                        keyManager.saveToPreferences();
                     } else {
                         snapSelectedToGrid();
                     }
@@ -1070,14 +1086,13 @@ public class KeyView extends View {
                 }
                 dragMode = NONE;
                 isLongPressTriggered = false;
+                movedDuringTouch = false;
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
-                if (isPastingMode) {
-                    return true;
-                }
                 dragMode = NONE;
                 isLongPressTriggered = false;
+                movedDuringTouch = false;
                 return true;
         }
 
@@ -1087,7 +1102,7 @@ public class KeyView extends View {
     private class GestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public void onLongPress(MotionEvent e) {
-            if (batchEditMode || isPastingMode) return;
+            if (batchEditMode) return;
             
             float screenX = e.getX();
             float screenY = e.getY();

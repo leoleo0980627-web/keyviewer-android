@@ -182,9 +182,7 @@ public class FloatView extends View {
             canvas.scale(scale, scale);
             canvas.translate(floatOffsetX, floatOffsetY);
             
-            keyView.setDrawBackground(false);
-            keyView.draw(canvas);
-            keyView.setDrawBackground(true);
+            keyView.render(canvas, false);
             
             canvas.restore();
         }

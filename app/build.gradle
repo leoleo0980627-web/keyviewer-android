@@ -9,6 +9,10 @@ android {
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
+
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
     }
 
     buildTypes {
@@ -22,6 +26,16 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    // 移除手动指定 sourceSets，恢复默认
+    // sourceSets {
+    //     main {
+    //         aidl.srcDirs = ['src/main/aidl']
+    //         ...
+    //     }
+    // }
+
+    // externalNativeBuild 配置暂注释
 }
 
 dependencies {
@@ -31,7 +45,7 @@ dependencies {
     implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
 
-// ========== 最终、最狠的 strip 任务终结者 ==========
+// 保留你原有的 strip 任务控制
 afterEvaluate {
     tasks.all { task ->
         if (task.name ==~ /strip.*DebugSymbols/ || task.name ==~ /strip.*ReleaseSymbols/) {

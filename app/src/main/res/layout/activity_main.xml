@@ -15,6 +15,7 @@
         android:layout_height="wrap_content"
         android:layout_margin="12dp" />
 
+    <!-- 右上角按钮组 -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -41,8 +42,20 @@
             android:padding="10dp"
             android:elevation="8dp" />
 
+        <ImageButton
+            android:id="@+id/configManagerBtn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_config"
+            android:background="@drawable/bg_zoom_panel"
+            android:padding="10dp"
+            android:elevation="8dp"
+            android:visibility="visible" />
+
     </LinearLayout>
 
+    <!-- 底部工具栏 -->
     <LinearLayout
         android:id="@+id/toolbar"
         android:layout_width="wrap_content"
@@ -120,47 +133,46 @@
 
     </LinearLayout>
 
-    <Button
-        android:id="@+id/floatWindowBtn"
+    <!-- 底部左侧按钮组（悬浮窗 + Shizuku + 输入法）-->
+    <LinearLayout
         android:layout_width="wrap_content"
-        android:layout_height="40dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
         android:layout_margin="12dp"
-        android:text="开启悬浮窗"
-        android:textSize="12sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:backgroundTint="#4CAF50"
-        android:textColor="#FFF" />
+        android:orientation="horizontal">
 
-    <Button
-        android:id="@+id/shizukuBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="120dp"
-        android:layout_marginBottom="12dp"
-        android:text="授权 Shizuku"
-        android:textSize="12sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:backgroundTint="#FF9800"
-        android:textColor="#FFF" />
+        <Button
+            android:id="@+id/floatWindowBtn"
+            android:layout_width="108dp"
+            android:layout_height="40dp"
+            android:text="开启悬浮窗"
+            android:textSize="14sp"
+            android:backgroundTint="#4CAF50"
+            android:textColor="#FFF" />
 
-    <Button
-        android:id="@+id/switchIMEBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="40dp"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="240dp"
-        android:layout_marginBottom="12dp"
-        android:text="启用输入法"
-        android:textSize="12sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:backgroundTint="#FF9800"
-        android:textColor="#FFF" />
+        <Button
+            android:id="@+id/shizukuBtn"
+            android:layout_width="108dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="授权 Shizuku"
+            android:textSize="14sp"
+            android:backgroundTint="#FF9800"
+            android:textColor="#FFF" />
 
+        <Button
+            android:id="@+id/switchIMEBtn"
+            android:layout_width="108dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:text="启用输入法"
+            android:textSize="14sp"
+            android:backgroundTint="#FF9800"
+            android:textColor="#FFF" />
+
+    </LinearLayout>
+
+    <!-- 右侧滑入面板 -->
     <include
         android:id="@+id/settingsPanel"
         layout="@layout/settings_panel"
@@ -180,6 +192,14 @@
     <include
         android:id="@+id/layerManagerPanel"
         layout="@layout/layer_manager_panel"
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right"
+        android:visibility="gone" />
+
+    <include
+        android:id="@+id/configManagerPanel"
+        layout="@layout/config_manager_panel"
         android:layout_width="280dp"
         android:layout_height="match_parent"
         android:layout_gravity="right"

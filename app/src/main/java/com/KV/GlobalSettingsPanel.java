@@ -1,12 +1,25 @@
 package com.KV;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
+import android.os.Build;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.Animation;
+import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,8 +31,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import rikka.shizuku.Shizuku;
@@ -32,19 +44,27 @@ public class GlobalSettingsPanel {
     private GlobalSettings settings;
     private RishInputListener inputListener;
     
+    private FrameLayout darkModeContainer;
+    private View darkModeSlider;
+    private ImageView sunIcon;
+    private ImageView moonIcon;
+    private boolean darkModeAnimating = false;
+    private float sliderStartX = 0;
+    private float sliderEndX = 0;
+    
     private TextView floatScaleText;
     private Button floatScaleUpBtn;
     private Button floatScaleDownBtn;
     private EditText rainHeightInput;
+    private EditText rainReserveHeightInput;
     private Button resetCountsBtn;
     private Button resetFloatPositionBtn;
     private Button exportConfigBtn;
     private Button importConfigBtn;
     private Button calibrateKeyboardBtn;
-    private Button closeGlobalSettingsBtn;
+    private Button closeBtn;
     
     private OnSettingsChangedListener listener;
-    private OnCloseRequestedListener closeListener;
     
     private static final int REQUEST_EXPORT = 1001;
     private static final int REQUEST_IMPORT = 1002;
@@ -55,10 +75,7 @@ public class GlobalSettingsPanel {
         void onCountsReset();
         void onFloatPositionReset();
         void onConfigImported();
-    }
-    
-    public interface OnCloseRequestedListener {
-        void onCloseRequested();
+        void onDarkModeChanged(boolean isDarkMode);
     }
     
     public GlobalSettingsPanel(Activity activity, View panelView, KeyView keyView) {
@@ -70,6 +87,7 @@ public class GlobalSettingsPanel {
         initViews();
         setupListeners();
         updateScaleText();
+        updateDarkModeUI(settings.darkModeEnabled);
     }
     
     public void setInputListener(RishInputListener listener) {
@@ -80,30 +98,46 @@ public class GlobalSettingsPanel {
         this.listener = listener;
     }
     
-    public void setOnCloseRequestedListener(OnCloseRequestedListener listener) {
-        this.closeListener = listener;
-    }
-    
     private void initViews() {
+        darkModeContainer = panelView.findViewById(R.id.darkModeContainer);
+        darkModeSlider = panelView.findViewById(R.id.darkModeSlider);
+        sunIcon = panelView.findViewById(R.id.sunIcon);
+        moonIcon = panelView.findViewById(R.id.moonIcon);
+        closeBtn = panelView.findViewById(R.id.closeGlobalSettingsBtn);
+        
         floatScaleText = panelView.findViewById(R.id.floatScaleText);
         floatScaleUpBtn = panelView.findViewById(R.id.floatScaleUpBtn);
         floatScaleDownBtn = panelView.findViewById(R.id.floatScaleDownBtn);
         rainHeightInput = panelView.findViewById(R.id.rainHeightInput);
+        rainReserveHeightInput = panelView.findViewById(R.id.rainReserveHeightInput);
         resetCountsBtn = panelView.findViewById(R.id.resetCountsBtn);
         resetFloatPositionBtn = panelView.findViewById(R.id.resetFloatPositionBtn);
         exportConfigBtn = panelView.findViewById(R.id.exportConfigBtn);
         importConfigBtn = panelView.findViewById(R.id.importConfigBtn);
         calibrateKeyboardBtn = panelView.findViewById(R.id.calibrateKeyboardBtn);
-        closeGlobalSettingsBtn = panelView.findViewById(R.id.closeGlobalSettingsBtn);
         
         rainHeightInput.setText(String.valueOf(settings.globalRainHeightDp));
+        rainReserveHeightInput.setText(String.valueOf(settings.globalRainReserveHeightDp));
+        
+        panelView.post(() -> calculateSliderRange());
+    }
+    
+    private void calculateSliderRange() {
+        if (darkModeContainer == null || darkModeSlider == null) return;
+        int containerWidth = darkModeContainer.getWidth();
+        int sliderWidth = darkModeSlider.getWidth();
+        sliderStartX = 0;
+        sliderEndX = containerWidth - sliderWidth;
     }
     
     private void setupListeners() {
-        closeGlobalSettingsBtn.setOnClickListener(v -> {
-            if (closeListener != null) {
-                closeListener.onCloseRequested();
-            }
+        darkModeContainer.setOnClickListener(v -> {
+            if (darkModeAnimating) return;
+            toggleDarkMode();
+        });
+        
+        closeBtn.setOnClickListener(v -> {
+            panelView.setVisibility(View.GONE);
         });
         
         floatScaleUpBtn.setOnClickListener(v -> {
@@ -132,6 +166,18 @@ public class GlobalSettingsPanel {
                     if (service != null && service.getFloatView() != null) {
                         service.getFloatView().updateScale();
                     }
+                } catch (NumberFormatException ignored) {}
+                return true;
+            }
+            return false;
+        });
+        
+        rainReserveHeightInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                try {
+                    int reserve = Integer.parseInt(rainReserveHeightInput.getText().toString());
+                    settings.globalRainReserveHeightDp = reserve;
+                    settings.save();
                 } catch (NumberFormatException ignored) {}
                 return true;
             }
@@ -176,6 +222,130 @@ public class GlobalSettingsPanel {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             activity.startActivityForResult(intent, REQUEST_IMPORT);
         });
+    }
+    
+    private void toggleDarkMode() {
+        boolean newMode = !settings.darkModeEnabled;
+        animateSliderToTarget(newMode);
+        applyDarkMode(newMode);
+    }
+    
+    private void animateSliderToTarget(boolean toDark) {
+        if (darkModeAnimating) return;
+        darkModeAnimating = true;
+        
+        float targetX = toDark ? sliderEndX : sliderStartX;
+        ObjectAnimator animator = ObjectAnimator.ofFloat(darkModeSlider, "translationX", targetX);
+        animator.setDuration(300);
+        animator.setInterpolator(new AccelerateDecelerateInterpolator());
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                darkModeAnimating = false;
+            }
+        });
+        animator.start();
+    }
+    
+    private void applyDarkMode(boolean isDarkMode) {
+        settings.darkModeEnabled = isDarkMode;
+        settings.save();
+        
+        int iconColor = isDarkMode ? 0xFFFFFFFF : 0xFF757575;
+        sunIcon.setColorFilter(iconColor);
+        moonIcon.setColorFilter(iconColor);
+        
+        animateThemeTransition(isDarkMode);
+        
+        if (listener != null) {
+            listener.onDarkModeChanged(isDarkMode);
+        }
+    }
+    
+    private void animateThemeTransition(boolean isDarkMode) {
+        int panelBgEnd = isDarkMode ? 0xFF2C2C2C : 0xFFF5F5F5;
+        int textColorEnd = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+        int inputBgEnd = isDarkMode ? 0xFF3C3C3C : 0xFFFFFFFF;
+        int inputTextEnd = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+        
+        animateBackgroundColor(panelView, panelBgEnd);
+        
+        TextView title = panelView.findViewById(R.id.closeGlobalSettingsBtn);
+        if (title != null) {
+            animateTextColor(title, textColorEnd);
+        }
+        
+        updateAllChildViews(panelView, isDarkMode);
+    }
+    
+    private void updateAllChildViews(View view, boolean isDarkMode) {
+        if (view instanceof EditText) {
+            EditText et = (EditText) view;
+            int bgColor = isDarkMode ? 0xFF3C3C3C : 0xFFFFFFFF;
+            int textColor = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+            animateBackgroundColor(et, bgColor);
+            animateTextColor(et, textColor);
+        } else if (view instanceof TextView) {
+            TextView tv = (TextView) view;
+            int textColor = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+            animateTextColor(tv, textColor);
+        } else if (view instanceof Button) {
+            Button btn = (Button) view;
+            int textColor = isDarkMode ? 0xFFFFFFFF : 0xFF333333;
+            animateTextColor(btn, textColor);
+        } else if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                updateAllChildViews(vg.getChildAt(i), isDarkMode);
+            }
+        }
+    }
+    
+    private void animateBackgroundColor(View target, int toColor) {
+        ValueAnimator animator = ValueAnimator.ofArgb(target.getSolidColor(), toColor);
+        animator.setDuration(300);
+        animator.setInterpolator(new AccelerateDecelerateInterpolator());
+        animator.addUpdateListener(animation -> {
+            target.setBackgroundColor((int) animation.getAnimatedValue());
+        });
+        animator.start();
+    }
+    
+    private void animateTextColor(TextView target, int toColor) {
+        ValueAnimator animator = ValueAnimator.ofArgb(target.getCurrentTextColor(), toColor);
+        animator.setDuration(300);
+        animator.setInterpolator(new AccelerateDecelerateInterpolator());
+        animator.addUpdateListener(animation -> {
+            target.setTextColor((int) animation.getAnimatedValue());
+        });
+        animator.start();
+    }
+    
+    private void updateDarkModeUI(boolean isDarkMode) {
+        int iconColor = isDarkMode ? 0xFFFFFFFF : 0xFF757575;
+        sunIcon.setColorFilter(iconColor);
+        moonIcon.setColorFilter(iconColor);
+        
+        float targetX = isDarkMode ? sliderEndX : sliderStartX;
+        darkModeSlider.setTranslationX(targetX);
+        
+        if (isDarkMode) {
+            panelView.setBackgroundColor(0xFF2C2C2C);
+            closeBtn.setTextColor(0xFFFFFFFF);
+            floatScaleText.setTextColor(0xFFFFFFFF);
+            rainHeightInput.setBackgroundColor(0xFF3C3C3C);
+            rainHeightInput.setTextColor(0xFFFFFFFF);
+            rainReserveHeightInput.setBackgroundColor(0xFF3C3C3C);
+            rainReserveHeightInput.setTextColor(0xFFFFFFFF);
+        } else {
+            panelView.setBackgroundColor(0xFFF5F5F5);
+            closeBtn.setTextColor(0xFF666666);
+            floatScaleText.setTextColor(0xFF333333);
+            rainHeightInput.setBackgroundColor(0xFFFFFFFF);
+            rainHeightInput.setTextColor(0xFF333333);
+            rainReserveHeightInput.setBackgroundColor(0xFFFFFFFF);
+            rainReserveHeightInput.setTextColor(0xFF333333);
+        }
     }
     
     private void startCalibration() {
@@ -248,16 +418,10 @@ public class GlobalSettingsPanel {
     }
     
     public void handleActivityResult(int requestCode, int resultCode, Intent data) {
-        if (resultCode != Activity.RESULT_OK || data == null) {
-            Log.d(TAG, "handleActivityResult: resultCode=" + resultCode + ", data=" + data);
-            return;
-        }
+        if (resultCode != Activity.RESULT_OK || data == null) return;
         
         android.net.Uri uri = data.getData();
-        if (uri == null) {
-            Log.d(TAG, "handleActivityResult: uri is null");
-            return;
-        }
+        if (uri == null) return;
         
         if (requestCode == REQUEST_EXPORT) {
             writeConfigToUri(uri);
@@ -276,6 +440,8 @@ public class GlobalSettingsPanel {
             globalJson.put("floatWindowX", settings.floatWindowX);
             globalJson.put("floatWindowY", settings.floatWindowY);
             globalJson.put("globalRainHeightDp", settings.globalRainHeightDp);
+            globalJson.put("globalRainReserveHeightDp", settings.globalRainReserveHeightDp);
+            globalJson.put("darkModeEnabled", settings.darkModeEnabled);
             root.put("globalSettings", globalJson);
             
             KeyManager km = keyView.getKeyManager();
@@ -291,12 +457,17 @@ public class GlobalSettingsPanel {
                 keyJson.put("height", key.height / density);
                 keyJson.put("boundKey", key.boundKey);
                 keyJson.put("displayLabel", key.displayLabel);
-                keyJson.put("fillColor", key.fillColor);
-                keyJson.put("borderColor", key.borderColor);
-                keyJson.put("cornerRadiusDp", key.cornerRadiusDp);
-                keyJson.put("borderWidthDp", key.borderWidthDp);
+                
+                keyJson.put("fillColorUp", key.fillColorUp);
+                keyJson.put("borderColorUp", key.borderColorUp);
+                keyJson.put("textColorUp", key.textColorUp);
+                keyJson.put("countColorUp", key.countColorUp);
+                keyJson.put("fillColorDown", key.fillColorDown);
+                keyJson.put("borderColorDown", key.borderColorDown);
+                keyJson.put("textColorDown", key.textColorDown);
+                keyJson.put("countColorDown", key.countColorDown);
+                
                 keyJson.put("textSizeSp", key.textSizeSp);
-                keyJson.put("textColor", key.textColor);
                 keyJson.put("showCount", key.showCount);
                 keyJson.put("mappingEnabled", key.mappingEnabled);
                 keyJson.put("mappedKey", key.mappedKey);
@@ -306,7 +477,10 @@ public class GlobalSettingsPanel {
                 keyJson.put("rainWidthPercent", key.rainWidthPercent);
                 keyJson.put("rainColor", key.rainColor);
                 keyJson.put("rainSpeedDp", key.rainSpeedDp);
+                keyJson.put("kpsTotalNoWrap", key.kpsTotalNoWrap);
+                keyJson.put("kpsTotalLabelOffsetX", key.kpsTotalLabelOffsetX);
                 keyJson.put("zIndex", key.zIndex);
+                
                 keysArray.put(keyJson);
             }
             root.put("keys", keysArray);
@@ -318,9 +492,7 @@ public class GlobalSettingsPanel {
             root.put("keyCounts", countsJson);
             root.put("totalPressCount", km.getTotalPressCount());
             
-            String json = root.toString(2);
-            Log.d(TAG, "buildConfigJson: success, length=" + json.length());
-            return json;
+            return root.toString(2);
             
         } catch (Exception e) {
             Log.e(TAG, "buildConfigJson failed", e);
@@ -329,238 +501,187 @@ public class GlobalSettingsPanel {
     }
     
     private void shareConfig() {
-        new Thread(() -> {
-            String json = buildConfigJson();
-            activity.runOnUiThread(() -> {
-                Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                shareIntent.setType("text/plain");
-                shareIntent.putExtra(Intent.EXTRA_TEXT, json);
-                activity.startActivity(Intent.createChooser(shareIntent, "导出配置"));
-                Log.d(TAG, "Config shared via intent, length: " + json.length());
-            });
-        }).start();
+        String json = buildConfigJson();
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, json);
+        activity.startActivity(Intent.createChooser(shareIntent, "导出配置"));
     }
     
     private void writeConfigToUri(android.net.Uri uri) {
-        activity.runOnUiThread(() -> {
-            Toast.makeText(activity, "正在导出配置...", Toast.LENGTH_SHORT).show();
-        });
-        
-        new Thread(() -> {
-            OutputStream os = null;
-            java.io.BufferedOutputStream bos = null;
-            try {
-                Log.d(TAG, "writeConfigToUri: " + uri);
-                
-                String json = buildConfigJson();
-                if (json.equals("{}")) {
-                    activity.runOnUiThread(() -> 
-                        Toast.makeText(activity, "配置数据为空", Toast.LENGTH_SHORT).show());
-                    return;
-                }
-                
-                try {
-                    activity.getContentResolver().takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    );
-                } catch (SecurityException e) {
-                    Log.e(TAG, "takePersistableUriPermission failed: " + e.getMessage());
-                }
-                
-                try {
-                    os = activity.getContentResolver().openOutputStream(uri, "wt");
-                } catch (Exception e1) {
-                    try {
-                        os = activity.getContentResolver().openOutputStream(uri, "w");
-                    } catch (Exception e2) {
-                        try {
-                            os = activity.getContentResolver().openOutputStream(uri, "rwt");
-                        } catch (Exception e3) {
-                            os = activity.getContentResolver().openOutputStream(uri);
-                        }
-                    }
-                }
-                
-                if (os == null) {
-                    Log.e(TAG, "OutputStream is null");
-                    activity.runOnUiThread(() -> 
-                        Toast.makeText(activity, "无法写入文件，请尝试保存到其他位置", Toast.LENGTH_LONG).show());
-                    return;
-                }
-                
-                bos = new java.io.BufferedOutputStream(os);
-                byte[] data = json.getBytes("UTF-8");
-                bos.write(data);
-                bos.flush();
-                
-                Log.d(TAG, "writeConfigToUri: success, wrote " + data.length + " bytes");
-                activity.runOnUiThread(() -> 
-                    Toast.makeText(activity, "配置导出成功 (" + data.length + " bytes)", Toast.LENGTH_SHORT).show());
-                
-            } catch (Exception e) {
-                Log.e(TAG, "writeConfigToUri failed", e);
-                activity.runOnUiThread(() -> 
-                    Toast.makeText(activity, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
-            } finally {
-                if (bos != null) {
-                    try { bos.close(); } catch (Exception e) { Log.e(TAG, "bos close failed", e); }
-                }
-                if (os != null) {
-                    try { os.close(); } catch (Exception e) { Log.e(TAG, "os close failed", e); }
-                }
+        try {
+            String json = buildConfigJson();
+            if (json.equals("{}")) {
+                Toast.makeText(activity, "配置数据为空", Toast.LENGTH_SHORT).show();
+                return;
             }
-        }).start();
+            
+            try {
+                activity.getContentResolver().takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (SecurityException e) {
+                Log.e(TAG, "takePersistableUriPermission failed: " + e.getMessage());
+            }
+            
+            OutputStream os = openExportOutputStream(uri);
+            if (os == null) {
+                Toast.makeText(activity, "无法写入文件", Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            try (OutputStream outputStream = os) {
+                outputStream.write(json.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            }
+            Toast.makeText(activity, "配置导出成功", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "writeConfigToUri failed", e);
+            Toast.makeText(activity, "导出失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private OutputStream openExportOutputStream(android.net.Uri uri) {
+        try {
+            return activity.getContentResolver().openOutputStream(uri, "wt");
+        } catch (Exception e) {
+            Log.w(TAG, "openOutputStream wt failed, falling back: " + e.getMessage());
+        }
+
+        try {
+            return activity.getContentResolver().openOutputStream(uri);
+        } catch (Exception e) {
+            Log.e(TAG, "openOutputStream default failed", e);
+            return null;
+        }
     }
     
     private void importConfigFromUri(android.net.Uri uri) {
-        activity.runOnUiThread(() -> {
-            Toast.makeText(activity, "正在导入配置...", Toast.LENGTH_SHORT).show();
-        });
-        
-        new Thread(() -> {
+        try {
             try {
-                Log.d(TAG, "importConfigFromUri: " + uri);
-                
-                try {
-                    activity.getContentResolver().takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    );
-                } catch (SecurityException e) {
-                    Log.e(TAG, "takePersistableUriPermission failed: " + e.getMessage());
-                }
-                
-                InputStream is = activity.getContentResolver().openInputStream(uri);
-                if (is == null) {
-                    activity.runOnUiThread(() -> 
-                        Toast.makeText(activity, "无法读取文件", Toast.LENGTH_SHORT).show());
-                    return;
-                }
-                
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
-                
-                String json = sb.toString();
-                Log.d(TAG, "importConfigFromUri: read " + json.length() + " bytes");
-                
-                if (json.isEmpty()) {
-                    activity.runOnUiThread(() -> 
-                        Toast.makeText(activity, "文件内容为空", Toast.LENGTH_SHORT).show());
-                    return;
-                }
-                
-                JSONObject root = new JSONObject(json);
-                
-                if (root.has("globalSettings")) {
-                    JSONObject globalJson = root.getJSONObject("globalSettings");
-                    settings.floatWindowEnabled = globalJson.optBoolean("floatWindowEnabled", false);
-                    settings.floatWindowScale = (float) globalJson.optDouble("floatWindowScale", 1.0);
-                    settings.floatWindowX = globalJson.optInt("floatWindowX", 100);
-                    settings.floatWindowY = globalJson.optInt("floatWindowY", 200);
-                    settings.globalRainHeightDp = globalJson.optInt("globalRainHeightDp", 200);
-                    settings.save();
-                    
-                    activity.runOnUiThread(() -> {
-                        rainHeightInput.setText(String.valueOf(settings.globalRainHeightDp));
-                        updateScaleText();
-                    });
-                }
-                
-                KeyManager km = keyView.getKeyManager();
-                
-                activity.runOnUiThread(() -> km.getKeys().clear());
-                
-                if (root.has("keys")) {
-                    JSONArray keysArray = root.getJSONArray("keys");
-                    float density = activity.getResources().getDisplayMetrics().density;
-                    
-                    List<KeyData> importedKeys = new ArrayList<>();
-                    
-                    for (int i = 0; i < keysArray.length(); i++) {
-                        JSONObject keyJson = keysArray.getJSONObject(i);
-                        
-                        String id = keyJson.optString("id", java.util.UUID.randomUUID().toString());
-                        float cx = (float) keyJson.optDouble("centerX", 100) * density;
-                        float cy = (float) keyJson.optDouble("centerY", 100) * density;
-                        float w = (float) keyJson.optDouble("width", 50) * density;
-                        float h = (float) keyJson.optDouble("height", 50) * density;
-                        
-                        KeyData key = new KeyData(id, cx, cy, w, h);
-                        key.boundKey = keyJson.optString("boundKey", "未绑定");
-                        key.displayLabel = keyJson.optString("displayLabel", "");
-                        key.fillColor = keyJson.optInt("fillColor", 0xFF999999);
-                        key.borderColor = keyJson.optInt("borderColor", 0xFF666666);
-                        key.cornerRadiusDp = (float) keyJson.optDouble("cornerRadiusDp", 8);
-                        key.borderWidthDp = (float) keyJson.optDouble("borderWidthDp", 5);
-                        key.textSizeSp = (float) keyJson.optDouble("textSizeSp", 14);
-                        key.textColor = keyJson.optInt("textColor", 0xFFFFFFFF);
-                        key.showCount = keyJson.optBoolean("showCount", true);
-                        key.mappingEnabled = keyJson.optBoolean("mappingEnabled", false);
-                        key.mappedKey = keyJson.optString("mappedKey", "");
-                        key.rainEnabled = keyJson.optBoolean("rainEnabled", false);
-                        key.rainOffsetXDp = (float) keyJson.optDouble("rainOffsetXDp", 0);
-                        key.rainOffsetYDp = (float) keyJson.optDouble("rainOffsetYDp", 0);
-                        key.rainWidthPercent = (float) keyJson.optDouble("rainWidthPercent", 100);
-                        key.rainColor = keyJson.optInt("rainColor", 0xFFFFFFFF);
-                        key.rainSpeedDp = (float) keyJson.optDouble("rainSpeedDp", 5);
-                        key.zIndex = keyJson.optInt("zIndex", 0);
-                        
-                        importedKeys.add(key);
-                    }
-                    
-                    activity.runOnUiThread(() -> {
-                        km.getKeys().addAll(importedKeys);
-                        // 导入后强制对齐网格
-                        float density2 = activity.getResources().getDisplayMetrics().density;
-                        int gridSizePx = (int) (15 * density2);
-                        for (KeyData k : km.getKeys()) {
-                            k.centerX = Math.round(k.centerX / gridSizePx) * gridSizePx;
-                            k.centerY = Math.round(k.centerY / gridSizePx) * gridSizePx;
-                        }
-                    });
-                }
-                
-                if (root.has("keyCounts")) {
-                    JSONObject countsJson = root.getJSONObject("keyCounts");
-                    Map<String, Integer> counts = new java.util.HashMap<>();
-                    java.util.Iterator<String> keys = countsJson.keys();
-                    int total = 0;
-                    while (keys.hasNext()) {
-                        String key = keys.next();
-                        int count = countsJson.optInt(key, 0);
-                        counts.put(key, count);
-                        total += count;
-                    }
-                    km.setKeyCodeCounts(counts);
-                    km.setTotalPressCount(total);
-                } else {
-                    km.resetAllCounts();
-                }
-                
-                activity.runOnUiThread(() -> {
-                    km.saveToPreferences();
-                    km.saveCountsToPreferences();
-                    keyView.clearSelection();
-                    keyView.invalidate();
-                    
-                    if (listener != null) listener.onConfigImported();
-                    
-                    Toast.makeText(activity, "配置导入成功", Toast.LENGTH_SHORT).show();
-                });
-                
-                Log.d(TAG, "importConfigFromUri: success");
-                
-            } catch (Exception e) {
-                Log.e(TAG, "importConfigFromUri failed", e);
-                activity.runOnUiThread(() -> 
-                    Toast.makeText(activity, "导入失败: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                activity.getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (SecurityException e) {
+                Log.e(TAG, "takePersistableUriPermission failed: " + e.getMessage());
             }
-        }).start();
+            
+            InputStream is = activity.getContentResolver().openInputStream(uri);
+            if (is == null) {
+                Toast.makeText(activity, "无法读取文件", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            reader.close();
+            
+            String json = sb.toString();
+            if (json.isEmpty()) {
+                Toast.makeText(activity, "文件内容为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            JSONObject root = new JSONObject(json);
+            
+            if (root.has("globalSettings")) {
+                JSONObject globalJson = root.getJSONObject("globalSettings");
+                settings.floatWindowEnabled = globalJson.optBoolean("floatWindowEnabled", false);
+                settings.floatWindowScale = (float) globalJson.optDouble("floatWindowScale", 1.0);
+                settings.floatWindowX = globalJson.optInt("floatWindowX", 100);
+                settings.floatWindowY = globalJson.optInt("floatWindowY", 200);
+                settings.globalRainHeightDp = globalJson.optInt("globalRainHeightDp", 200);
+                settings.globalRainReserveHeightDp = globalJson.optInt("globalRainReserveHeightDp", 10);
+                settings.darkModeEnabled = globalJson.optBoolean("darkModeEnabled", false);
+                settings.save();
+                
+                rainHeightInput.setText(String.valueOf(settings.globalRainHeightDp));
+                rainReserveHeightInput.setText(String.valueOf(settings.globalRainReserveHeightDp));
+                updateScaleText();
+                updateDarkModeUI(settings.darkModeEnabled);
+                if (listener != null) listener.onDarkModeChanged(settings.darkModeEnabled);
+            }
+            
+            KeyManager km = keyView.getKeyManager();
+            km.getKeys().clear();
+            
+            if (root.has("keys")) {
+                JSONArray keysArray = root.getJSONArray("keys");
+                float density = activity.getResources().getDisplayMetrics().density;
+                
+                for (int i = 0; i < keysArray.length(); i++) {
+                    JSONObject keyJson = keysArray.getJSONObject(i);
+                    KeyData key = importKeyFromJson(keyJson, density);
+                    km.getKeys().add(key);
+                }
+            }
+            
+            km.resetAllCounts();
+            if (root.has("keyCounts")) {
+                JSONObject countsJson = root.getJSONObject("keyCounts");
+                java.util.Iterator<String> keys = countsJson.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    int count = countsJson.optInt(key, 0);
+                    for (int i = 0; i < count; i++) {
+                        km.recordKeyPress(key);
+                    }
+                }
+            }
+            
+            km.saveToPreferences();
+            keyView.clearSelection();
+            keyView.invalidate();
+            
+            if (listener != null) listener.onConfigImported();
+            Toast.makeText(activity, "配置导入成功", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "importConfigFromUri failed", e);
+            Toast.makeText(activity, "导入失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+    
+    private KeyData importKeyFromJson(JSONObject keyJson, float density) throws Exception {
+        String id = keyJson.optString("id", java.util.UUID.randomUUID().toString());
+        float cx = (float) keyJson.optDouble("centerX", 100) * density;
+        float cy = (float) keyJson.optDouble("centerY", 100) * density;
+        float w = (float) keyJson.optDouble("width", 50) * density;
+        float h = (float) keyJson.optDouble("height", 50) * density;
+        
+        KeyData key = new KeyData(id, cx, cy, w, h);
+        
+        key.boundKey = keyJson.optString("boundKey", "未绑定");
+        key.displayLabel = keyJson.optString("displayLabel", "");
+        
+        int oldFillColor = keyJson.optInt("fillColor", 0xFF999999);
+        int oldBorderColor = keyJson.optInt("borderColor", 0xFF666666);
+        
+        key.fillColorUp = keyJson.optInt("fillColorUp", oldFillColor);
+        key.borderColorUp = keyJson.optInt("borderColorUp", oldBorderColor);
+        key.textColorUp = keyJson.optInt("textColorUp", 0xFFFFFFFF);
+        key.countColorUp = keyJson.optInt("countColorUp", key.textColorUp);
+        key.fillColorDown = keyJson.optInt("fillColorDown", 0xFFFFFFFF);
+        key.borderColorDown = keyJson.optInt("borderColorDown", key.borderColorUp);
+        key.textColorDown = keyJson.optInt("textColorDown", key.textColorUp);
+        key.countColorDown = keyJson.optInt("countColorDown", key.countColorUp);
+        
+        key.textSizeSp = (float) keyJson.optDouble("textSizeSp", 14);
+        key.showCount = keyJson.optBoolean("showCount", true);
+        key.mappingEnabled = keyJson.optBoolean("mappingEnabled", false);
+        key.mappedKey = keyJson.optString("mappedKey", "");
+        key.rainEnabled = keyJson.optBoolean("rainEnabled", false);
+        key.rainOffsetXDp = (float) keyJson.optDouble("rainOffsetXDp", 0);
+        key.rainOffsetYDp = (float) keyJson.optDouble("rainOffsetYDp", 0);
+        key.rainWidthPercent = (float) keyJson.optDouble("rainWidthPercent", 100);
+        key.rainColor = keyJson.optInt("rainColor", 0xFFFFFFFF);
+        key.rainSpeedDp = (float) keyJson.optDouble("rainSpeedDp", 5);
+        key.kpsTotalNoWrap = keyJson.optBoolean("kpsTotalNoWrap", false);
+        key.kpsTotalLabelOffsetX = (float) keyJson.optDouble("kpsTotalLabelOffsetX", 0);
+        key.zIndex = keyJson.optInt("zIndex", 0);
+        
+        return key;
     }
 }

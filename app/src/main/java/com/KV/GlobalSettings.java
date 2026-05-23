@@ -9,14 +9,20 @@ public class GlobalSettings {
     private Context context;
     private SharedPreferences prefs;
     
+    // 悬浮窗设置
     public boolean floatWindowEnabled = false;
     public float floatWindowScale = 1.0f;
     public int floatWindowX = 100;
     public int floatWindowY = 200;
     
+    // 键雨设置
     public int globalRainHeightDp = 200;
     public float globalRainWidthDp = 100;
     public float globalRainCornerRadiusDp = 4f;
+    public int globalRainReserveHeightDp = 10;  // 新增：键雨预留高度
+    
+    // 深色模式
+    public boolean darkModeEnabled = false;
     
     // 键盘校准
     public String keyboardDevicePath = "";
@@ -47,6 +53,8 @@ public class GlobalSettings {
         globalRainHeightDp = prefs.getInt("rain_height", 200);
         globalRainWidthDp = prefs.getFloat("rain_width", 100);
         globalRainCornerRadiusDp = prefs.getFloat("rain_radius", 4f);
+        globalRainReserveHeightDp = prefs.getInt("rain_reserve_height", 10);
+        darkModeEnabled = prefs.getBoolean("dark_mode", false);
         keyboardDevicePath = prefs.getString("keyboard_device_path", "");
         keyboardCalibrated = prefs.getBoolean("keyboard_calibrated", false);
     }
@@ -60,6 +68,8 @@ public class GlobalSettings {
         editor.putInt("rain_height", globalRainHeightDp);
         editor.putFloat("rain_width", globalRainWidthDp);
         editor.putFloat("rain_radius", globalRainCornerRadiusDp);
+        editor.putInt("rain_reserve_height", globalRainReserveHeightDp);
+        editor.putBoolean("dark_mode", darkModeEnabled);
         editor.putString("keyboard_device_path", keyboardDevicePath);
         editor.putBoolean("keyboard_calibrated", keyboardCalibrated);
         editor.apply();
@@ -82,6 +92,11 @@ public class GlobalSettings {
     public void resetFloatPosition() {
         floatWindowX = 100;
         floatWindowY = 200;
+        save();
+    }
+    
+    public void toggleDarkMode() {
+        darkModeEnabled = !darkModeEnabled;
         save();
     }
 }
